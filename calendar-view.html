@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Calendar - View Only</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.2em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .child-banner {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .child-banner h2 {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h3 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .event-card {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border-left: 8px solid #28a745;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .event-card:hover {
+            transform: translateX(5px);
+        }
+
+        .event-card.today {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+
+        .event-card.past {
+            opacity: 0.6;
+            border-left-color: #999;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .event-title {
+            font-size: 1.8em;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .event-badge {
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .event-badge.today-badge {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .event-date-time {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .date-box {
+            background: #667eea;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .date-box .day {
+            font-size: 2em;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .date-box .month-year {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .time-box {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .event-details {
+            margin-top: 15px;
+            font-size: 1.1em;
+            color: #666;
+        }
+
+        .event-details p {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .event-details strong {
+            color: #333;
+            min-width: 100px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state h3 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            font-size: 1.2em;
+        }
+
+        .refresh-notice {
+            background: #e7f3ff;
+            border: 2px solid #2196F3;
+            color: #0d47a1;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+
+        .print-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .print-btn:hover {
+            transform: scale(1.05);
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+                border-radius: 0;
+            }
+
+            .print-btn,
+            .refresh-notice {
+                display: none;
+            }
+
+            .event-card:hover {
+                transform: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .event-title {
+                font-size: 1.4em;
+            }
+
+            .event-date-time {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .date-box {
+                width: 100%;
+            }
+
+            .content {
+                padding: 15px;
+            }
+        }
+
+        .last-updated {
+            text-align: center;
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .icon {
+            font-size: 1.2em;
+            margin-right: 5px;
+        }
+
+        .no-events-icon {
+            font-size: 5em;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📅 Family Calendar</h1>
+            <p>Schedule & Events - View Only</p>
+        </div>
+
+        <div class="content">
+            <button class="print-btn" onclick="window.print()">🖨️ Print Calendar</button>
+
+            <div class="refresh-notice">
+                <strong>📱 Auto-Refresh:</strong> This page updates automatically every 30 seconds
+            </div>
+
+            <div id="childBanner"></div>
+
+            <!-- Upcoming Events Section -->
+            <div class="section">
+                <h3>🎯 Upcoming Events</h3>
+                <div id="upcomingEvents"></div>
+            </div>
+
+            <!-- All Events Section -->
+            <div class="section" id="allEventsSection">
+                <h3>📋 All Scheduled Events</h3>
+                <div id="allEvents"></div>
+            </div>
+
+            <div class="last-updated">
+                Last updated: <span id="lastUpdated"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEYS = {
+            EVENTS: 'coparent_events',
+            SETTINGS: 'coparent_settings'
+        };
+
+        let settings = {};
+        let events = [];
+
+        // Load data
+        function loadData() {
+            try {
+                const savedSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+                if (savedSettings) {
+                    settings = JSON.parse(savedSettings);
+                }
+
+                const savedEvents = localStorage.getItem(STORAGE_KEYS.EVENTS);
+                if (savedEvents) {
+                    events = JSON.parse(savedEvents);
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        // Display child banner
+        function displayChildBanner() {
+            if (settings.childName) {
+                const html = `
+                    <div class="child-banner">
+                        <h2>${settings.childName}'s Schedule</h2>
+                        ${settings.childAge ? `<p>Age: ${settings.childAge}</p>` : ''}
+                    </div>
+                `;
+                document.getElementById('childBanner').innerHTML = html;
+            }
+        }
+
+        // Check if date is today
+        function isToday(date) {
+            const today = new Date();
+            const checkDate = new Date(date);
+            return checkDate.toDateString() === today.toDateString();
+        }
+
+        // Check if date is in the past
+        function isPast(date) {
+            const now = new Date();
+            const checkDate = new Date(date);
+            return checkDate < now;
+        }
+
+        // Format date parts
+        function formatDateParts(dateString) {
+            const date = new Date(dateString);
+            const day = date.getDate();
+            const month = date.toLocaleDateString('en-US', { month: 'short' });
+            const year = date.getFullYear();
+            const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+            const time = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            return { day, month, year, weekday, time };
+        }
+
+        // Create event card HTML
+        function createEventCard(event) {
+            const { day, month, year, weekday, time } = formatDateParts(event.dateTime);
+            const today = isToday(event.dateTime);
+            const past = isPast(event.dateTime);
+
+            let cardClass = 'event-card';
+            let badge = '';
+
+            if (today) {
+                cardClass += ' today';
+                badge = '<span class="event-badge today-badge">TODAY</span>';
+            } else if (!past) {
+                badge = '<span class="event-badge">UPCOMING</span>';
+            }
+
+            if (past && !today) {
+                cardClass += ' past';
+            }
+
+            return `
+                <div class="${cardClass}">
+                    <div class="event-header">
+                        <div class="event-title">${event.title}</div>
+                        ${badge}
+                    </div>
+                    <div class="event-date-time">
+                        <div class="date-box">
+                            <div class="day">${day}</div>
+                            <div class="month-year">${month} ${year}</div>
+                            <div class="month-year">${weekday}</div>
+                        </div>
+                        <div class="time-box">
+                            <span class="icon">🕐</span>${time}
+                        </div>
+                    </div>
+                    ${event.location || event.notes ? `
+                        <div class="event-details">
+                            ${event.location ? `
+                                <p>
+                                    <strong><span class="icon">📍</span>Location:</strong>
+                                    <span>${event.location}</span>
+                                </p>
+                            ` : ''}
+                            ${event.notes ? `
+                                <p>
+                                    <strong><span class="icon">📝</span>Notes:</strong>
+                                    <span>${event.notes}</span>
+                                </p>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                    <div class="event-details" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                        <p style="color: #999; font-size: 0.9em;">
+                            <span class="icon">👤</span>Added by ${event.addedBy}
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display upcoming events
+        function displayUpcomingEvents() {
+            const now = new Date();
+            const upcoming = events
+                .filter(e => new Date(e.dateTime) >= now)
+                .sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime))
+                .slice(0, 10);
+
+            const container = document.getElementById('upcomingEvents');
+
+            if (upcoming.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="no-events-icon">📅</div>
+                        <h3>No Upcoming Events</h3>
+                        <p>The calendar is clear for now</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = upcoming.map(event => createEventCard(event)).join('');
+            }
+        }
+
+        // Display all events
+        function displayAllEvents() {
+            const sorted = events.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+
+            const container = document.getElementById('allEvents');
+
+            if (sorted.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="no-events-icon">🗓️</div>
+                        <h3>No Events Found</h3>
+                        <p>Events will appear here once they are added in the main app</p>
+                    </div>
+                `;
+                document.getElementById('allEventsSection').style.display = 'none';
+            } else {
+                container.innerHTML = sorted.map(event => createEventCard(event)).join('');
+                document.getElementById('allEventsSection').style.display = 'block';
+            }
+        }
+
+        // Update last updated time
+        function updateLastUpdated() {
+            const now = new Date();
+            const timeString = now.toLocaleString();
+            document.getElementById('lastUpdated').textContent = timeString;
+        }
+
+        // Initialize and refresh
+        function init() {
+            loadData();
+            displayChildBanner();
+            displayUpcomingEvents();
+            displayAllEvents();
+            updateLastUpdated();
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            init();
+        }, 30000);
+
+        // Initial load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
