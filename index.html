@@ -406,6 +406,7 @@
                     <input type="password" id="loginPassword" placeholder="Enter password">
                 </div>
                 <button class="btn" onclick="login()">Login</button>
+                <button class="btn btn-secondary" onclick="showForgotPasswordForm()">Forgot Password?</button>
             </div>
 
             <!-- Register Form -->
@@ -428,6 +429,17 @@
                     <small style="color: #666;">Leave blank to create a new family</small>
                 </div>
                 <button class="btn" onclick="register()">Register</button>
+            </div>
+
+            <!-- Forgot Password Form -->
+            <div id="forgotPasswordForm" class="hidden">
+                <p style="color: #666; margin-bottom: 20px;">Enter your email address and we'll send you a link to reset your password.</p>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="resetEmail" placeholder="your@email.com">
+                </div>
+                <button class="btn" onclick="sendPasswordReset()">Send Reset Link</button>
+                <button class="btn btn-secondary" onclick="backToLogin()">Back to Login</button>
             </div>
         </div>
     </div>
@@ -969,6 +981,38 @@
             if (confirm('Are you sure you want to logout?')) {
                 await auth.signOut();
                 showNotification('Logged out successfully', 'success');
+            }
+        }
+
+        function showForgotPasswordForm() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('forgotPasswordForm').classList.remove('hidden');
+        }
+
+        function backToLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('forgotPasswordForm').classList.add('hidden');
+            document.getElementById('resetEmail').value = '';
+        }
+
+        async function sendPasswordReset() {
+            const email = document.getElementById('resetEmail').value.trim();
+
+            if (!email) {
+                showNotification('Please enter your email address', 'error');
+                return;
+            }
+
+            try {
+                await auth.sendPasswordResetEmail(email);
+                showNotification('Password reset link sent! Check your email.', 'success');
+                setTimeout(() => {
+                    backToLogin();
+                }, 2000);
+            } catch (error) {
+                showNotification(error.message, 'error');
             }
         }
 
