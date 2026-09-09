@@ -477,6 +477,86 @@
             font-size: 1.1em;
             margin-bottom: 10px;
         }
+
+        .parent-input-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .parent-input-group input {
+            flex: 1;
+        }
+
+        .parent-input-group input:nth-child(2) {
+            flex: 0 0 80px;
+        }
+
+        .parent-remove-btn {
+            padding: 10px 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+
+        .parent-remove-btn:hover {
+            background: #c82333;
+        }
+
+        .expense-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .settlement-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .settlement-box h4 {
+            color: #1565c0;
+            margin-bottom: 10px;
+        }
+
+        .settlement-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .settlement-item {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .settlement-item strong {
+            color: #667eea;
+        }
+
+        .settlement-owed {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-weight: 600;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
