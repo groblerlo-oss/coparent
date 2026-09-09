@@ -577,6 +577,51 @@
         </div>
     </div>
 
+    <!-- Family Setup Step 2: Configure Parents -->
+    <div class="hidden" id="familySetupStep2" style="display: none;">
+        <div class="container" style="max-width: 500px; margin: 50px auto;">
+            <div class="header">
+                <h1>Configure Parents & Splits</h1>
+                <p>Set up expense split percentages</p>
+            </div>
+            <div style="padding: 40px;">
+                <p style="color: #666; margin-bottom: 20px;">Define how expenses will be split. Percentages must total 100%.</p>
+
+                <div id="parentsContainer">
+                    <!-- Parent entries added here dynamically -->
+                </div>
+
+                <button class="btn btn-secondary" onclick="addParentInput()" style="width: 100%; margin: 20px 0;">+ Add Parent</button>
+
+                <div id="splitErrorMessage" class="error-message" style="text-align: center; margin: 15px 0; display: none;"></div>
+
+                <button class="btn" onclick="goToStep3()">Next: Review</button>
+                <button class="btn btn-secondary" onclick="goBackToStep1()">Back</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Family Setup Step 3: Review & Create -->
+    <div class="hidden" id="familySetupStep3" style="display: none;">
+        <div class="container" style="max-width: 500px; margin: 50px auto;">
+            <div class="header">
+                <h1>Review & Create Family</h1>
+                <p>Confirm everything looks good</p>
+            </div>
+            <div style="padding: 40px;">
+                <div class="info-box">
+                    <p><strong>Family Name:</strong> <span id="reviewFamilyName"></span></p>
+                    <p><strong>Children:</strong> <span id="reviewChildren"></span></p>
+                    <p><strong>Parents & Splits:</strong></p>
+                    <div id="reviewParents" style="margin-left: 15px;"></div>
+                </div>
+
+                <button class="btn" onclick="createFamilyFinal()">Create Family</button>
+                <button class="btn btn-secondary" onclick="goBackToStep2()">Back</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main App -->
     <div class="container hidden" id="mainApp">
         <div class="header">
