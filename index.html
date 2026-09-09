@@ -911,38 +911,37 @@
         }
 
         async function loadUserData() {
-            // Get user's families
             try {
-                const familiesSnapshot = await db.collectionGroup('members')
-                    .where('userId', '==', currentUser.uid)
-                    .get();
+                const familiesSnapshot = await db.collection('families').get();
+                const families = [];
 
-                if (familiesSnapshot.empty) {
-                    // No families - show family setup
-                    showFamilySetup();
-                } else {
-                    // Load families
-                    const families = [];
-                    for (const doc of familiesSnapshot.docs) {
-                        const familyId = doc.ref.parent.parent.id;
-                        const familyDoc = await db.collection('families').doc(familyId).get();
-                        if (familyDoc.exists) {
+                for (const familyDoc of familiesSnapshot.docs) {
+                    try {
+                        const memberDoc = await db.collection('families')
+                            .doc(familyDoc.id)
+                            .collection('members')
+                            .doc(currentUser.uid)
+                            .get();
+
+                        if (memberDoc.exists) {
                             families.push({
-                                id: familyId,
+                                id: familyDoc.id,
                                 ...familyDoc.data(),
-                                role: doc.data().role
+                                role: memberDoc.data().role
                             });
                         }
+                    } catch (e) {
+                        // Skip families we can't access
                     }
+                }
 
-                    if (families.length > 0) {
-                        currentFamily = families[0].id;
-                        userRole = families[0].role;
-                        loadFamilyData(families);
-                        showMainApp();
-                    } else {
-                        showFamilySetup();
-                    }
+                if (families.length > 0) {
+                    currentFamily = families[0].id;
+                    userRole = families[0].role;
+                    loadFamilyData(families);
+                    showMainApp();
+                } else {
+                    showFamilySetup();
                 }
             } catch (error) {
                 console.error('Error loading user data:', error);
