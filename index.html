@@ -1337,6 +1337,7 @@
             }
 
             loadCalendarEvents();
+            loadExpenses();
             if (userRole === 'parent') {
                 loadFamilyMembers();
                 loadDocuments();
@@ -1350,9 +1351,12 @@
             event.target.classList.add('active');
             document.getElementById(tabName).classList.add('active');
 
-            // Load documents when switching to documents tab
+            // Load data when switching tabs
             if (tabName === 'documents' && userRole === 'parent') {
                 loadDocuments();
+            }
+            if (tabName === 'expenses' && userRole === 'parent') {
+                loadExpenses();
             }
         }
 
@@ -1507,6 +1511,7 @@
             const selectedFamily = document.getElementById('familyDropdown').value;
             currentFamily = selectedFamily;
             loadCalendarEvents();
+            loadExpenses();
             if (userRole === 'parent') {
                 loadFamilyMembers();
                 loadDocuments();
