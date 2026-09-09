@@ -878,6 +878,137 @@
         let currentFamily = null;
         let userRole = null;
 
+        // Family setup wizard state
+        let wizardState = {
+            familyName: '',
+            childrenNames: [],
+            parents: []
+        };
+
+        function goToStep2() {
+            const familyName = document.getElementById('familyName').value.trim();
+            const childrenText = document.getElementById('childrenNames').value.trim();
+
+            if (!familyName) {
+                showNotification('Please enter a family name', 'error');
+                return;
+            }
+
+            const children = childrenText.split('\n').filter(name => name.trim()).map(name => name.trim());
+            if (children.length === 0) {
+                showNotification('Please enter at least one child\'s name', 'error');
+                return;
+            }
+
+            wizardState.familyName = familyName;
+            wizardState.childrenNames = children;
+
+            if (wizardState.parents.length === 0) {
+                wizardState.parents.push({name: currentUser.displayName || 'Parent 1', split: 50});
+                wizardState.parents.push({name: 'Parent 2', split: 50});
+            }
+
+            renderParentInputs();
+            document.getElementById('familySetupScreen').classList.add('hidden');
+            document.getElementById('familySetupStep2').classList.remove('hidden');
+            document.getElementById('familySetupStep2').style.display = 'block';
+        }
+
+        function goToStep3() {
+            const parents = [];
+            const parentInputs = document.querySelectorAll('.parent-input-group');
+
+            let totalSplit = 0;
+            let hasError = false;
+
+            parentInputs.forEach((group, index) => {
+                const nameInput = group.querySelector('input:nth-child(1)');
+                const splitInput = group.querySelector('input:nth-child(2)');
+
+                const name = nameInput.value.trim();
+                const split = parseFloat(splitInput.value) || 0;
+
+                if (!name) {
+                    showNotification('Please enter all parent names', 'error');
+                    hasError = true;
+                    return;
+                }
+
+                if (split <= 0 || split > 100) {
+                    showNotification('Split percentages must be between 0 and 100', 'error');
+                    hasError = true;
+                    return;
+                }
+
+                parents.push({name, split});
+                totalSplit += split;
+            });
+
+            if (hasError) return;
+
+            if (Math.abs(totalSplit - 100) > 0.01) {
+                document.getElementById('splitErrorMessage').textContent = `Percentages total ${totalSplit.toFixed(1)}% (must be 100%)`;
+                document.getElementById('splitErrorMessage').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('splitErrorMessage').style.display = 'none';
+            wizardState.parents = parents;
+
+            document.getElementById('reviewFamilyName').textContent = wizardState.familyName;
+            document.getElementById('reviewChildren').textContent = wizardState.childrenNames.join(', ');
+
+            const reviewParents = document.getElementById('reviewParents');
+            reviewParents.innerHTML = wizardState.parents.map(p => `<p>• ${p.name}: ${p.split}%</p>`).join('');
+
+            document.getElementById('familySetupStep2').classList.add('hidden');
+            document.getElementById('familySetupStep3').classList.remove('hidden');
+            document.getElementById('familySetupStep3').style.display = 'block';
+        }
+
+        function goBackToStep1() {
+            document.getElementById('familySetupStep2').classList.add('hidden');
+            document.getElementById('familySetupStep2').style.display = 'none';
+            document.getElementById('familySetupScreen').classList.remove('hidden');
+        }
+
+        function goBackToStep2() {
+            document.getElementById('familySetupStep3').classList.add('hidden');
+            document.getElementById('familySetupStep3').style.display = 'none';
+            document.getElementById('familySetupStep2').classList.remove('hidden');
+            document.getElementById('familySetupStep2').style.display = 'block';
+        }
+
+        function renderParentInputs() {
+            const container = document.getElementById('parentsContainer');
+            container.innerHTML = '';
+
+            wizardState.parents.forEach((parent, index) => {
+                const group = document.createElement('div');
+                group.className = 'parent-input-group';
+                group.innerHTML = `
+                    <input type="text" value="${parent.name}" placeholder="Parent name">
+                    <input type="number" value="${parent.split}" min="0" max="100" step="0.1" placeholder="%">
+                    <button class="parent-remove-btn" onclick="removeParentInput(${index})">Remove</button>
+                `;
+                container.appendChild(group);
+            });
+        }
+
+        function addParentInput() {
+            wizardState.parents.push({name: '', split: 0});
+            renderParentInputs();
+        }
+
+        function removeParentInput(index) {
+            if (wizardState.parents.length > 1) {
+                wizardState.parents.splice(index, 1);
+                renderParentInputs();
+            } else {
+                showNotification('At least one parent is required', 'error');
+            }
+        }
+
         // Initialize App
         auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -1081,31 +1212,28 @@
         }
 
         async function createFamily() {
-            const familyName = document.getElementById('familyName').value.trim();
-            const childrenText = document.getElementById('childrenNames').value.trim();
+            goToStep2();
+        }
 
-            if (!familyName) {
-                showNotification('Please enter a family name', 'error');
-                return;
-            }
+        async function createFamilyFinal() {
+            const familyName = wizardState.familyName;
+            const children = wizardState.childrenNames;
+            const parents = wizardState.parents;
 
-            const children = childrenText.split('\n').filter(name => name.trim()).map(name => name.trim());
-
-            if (children.length === 0) {
-                showNotification('Please enter at least one child\'s name', 'error');
+            if (!familyName || children.length === 0 || parents.length === 0) {
+                showNotification('Invalid family setup', 'error');
                 return;
             }
 
             try {
-                // Create family
                 const familyRef = await db.collection('families').add({
                     name: familyName,
                     children: children,
+                    parents: parents,
                     createdBy: currentUser.uid,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                // Add creator as parent member
                 await familyRef.collection('members').doc(currentUser.uid).set({
                     userId: currentUser.uid,
                     role: 'parent',
@@ -1113,6 +1241,13 @@
                 });
 
                 showNotification('Family created successfully!', 'success');
+
+                wizardState = {
+                    familyName: '',
+                    childrenNames: [],
+                    parents: []
+                };
+
                 await loadUserData();
             } catch (error) {
                 showNotification(error.message, 'error');
