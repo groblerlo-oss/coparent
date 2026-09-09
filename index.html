@@ -1350,6 +1350,7 @@
             if (userRole === 'parent') {
                 loadFamilyMembers();
                 loadDocuments();
+                loadParentSplitsInSettings();
             }
         }
 
@@ -1366,6 +1367,9 @@
             }
             if (tabName === 'expenses' && userRole === 'parent') {
                 loadExpenses();
+            }
+            if (tabName === 'settings' && userRole === 'parent') {
+                loadParentSplitsInSettings();
             }
         }
 
@@ -2017,6 +2021,71 @@
                 summary.style.display = 'block';
             } catch (error) {
                 console.error('Error calculating settlement:', error);
+            }
+        }
+
+        async function loadParentSplitsInSettings() {
+            try {
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                if (!familyDoc.exists) return;
+
+                const family = familyDoc.data();
+                const parents = family.parents || [];
+
+                const container = document.getElementById('parentsSplitContainer');
+                container.innerHTML = '';
+
+                parents.forEach((parent, index) => {
+                    const group = document.createElement('div');
+                    group.className = 'parent-input-group';
+                    group.style.cssText = 'background: white; border: 1px solid #e0e0e0; padding: 12px;';
+                    group.innerHTML = `
+                        <input type="text" value="${parent.name}" placeholder="Parent name" data-parent-index="${index}">
+                        <input type="number" value="${parent.split}" min="0" max="100" step="0.1" placeholder="%" data-parent-index="${index}">
+                    `;
+                    container.appendChild(group);
+                });
+            } catch (error) {
+                console.error('Error loading parent splits:', error);
+            }
+        }
+
+        async function saveSplitChanges() {
+            try {
+                const inputs = document.querySelectorAll('#parentsSplitContainer input');
+                const parents = [];
+                let totalSplit = 0;
+
+                for (let i = 0; i < inputs.length; i += 2) {
+                    const name = inputs[i].value.trim();
+                    const split = parseFloat(inputs[i + 1].value) || 0;
+
+                    if (!name) {
+                        showNotification('Please enter all parent names', 'error');
+                        return;
+                    }
+
+                    if (split <= 0 || split > 100) {
+                        showNotification('Split percentages must be between 0 and 100', 'error');
+                        return;
+                    }
+
+                    parents.push({name, split});
+                    totalSplit += split;
+                }
+
+                if (Math.abs(totalSplit - 100) > 0.01) {
+                    showNotification(`Percentages total ${totalSplit.toFixed(1)}% (must be 100%)`, 'error');
+                    return;
+                }
+
+                await db.collection('families').doc(currentFamily).update({
+                    parents: parents
+                });
+
+                showNotification('Split configuration updated!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
             }
         }
     </script>
