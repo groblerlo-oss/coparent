@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Co-Parent Planner Pro</title>
+
+    <!-- Firebase CDN -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .emergency-banner {
+            background: #dc3545;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .emergency-banner:hover {
+            background: #c82333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-small {
+            width: auto;
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 30px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            color: #666;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .event-card, .expense-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 5px solid #28a745;
+        }
+
+        .event-card.past {
+            opacity: 0.7;
+            border-left-color: #6c757d;
+        }
+
+        .expense-card.pending {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+
+        .expense-card.paid {
+            border-left-color: #28a745;
+        }
+
+        .child-profile-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .child-photo {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid white;
+            margin: 0 auto 15px;
+            display: block;
+        }
+
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .schedule-day {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .schedule-day.parent1 {
+            background: #e3f2fd;
+            border: 3px solid #2196F3;
+        }
+
+        .schedule-day.parent2 {
+            background: #fce4ec;
+            border: 3px solid #e91e63;
+        }
+
+        .schedule-day h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .document-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .document-icon {
+            font-size: 2em;
+            margin-right: 15px;
+        }
+
+        .emergency-card {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .emergency-card h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .emergency-card p {
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            overflow-y: auto;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            margin: 20px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
+            max-width: 300px;
+            display: none;
+        }
+
+        .notification.show {
+            display: block;
+        }
+
+        .notification.success {
+            border-left: 5px solid #28a745;
+        }
+
+        .notification.error {
+            border-left: 5px solid #dc3545;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 15px;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .auth-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #667eea;
+        }
+
+        .event-meta, .expense-meta {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-badge.pending {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .status-badge.paid {
+            background: #28a745;
+            color: white;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .info-item h5 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .info-item p {
+            color: #333;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="notification" id="notification"></div>
+
+    <!-- Auth Screen -->
+    <div class="container" id="authScreen">
+        <div class="header">
+            <h1>👨‍👩‍👧‍👦 Co-Parent Planner Pro</h1>
+            <p>Manage your children's life together</p>
+        </div>
+        <div style="padding: 40px;">
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+                <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
+            </div>
+
+            <div id="loginForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter password">
+                </div>
+                <button class="btn" onclick="login()">Login</button>
+            </div>
+
+            <div id="registerForm" class="hidden">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="registerName" placeholder="Your full name">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="registerEmail" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="registerPassword" placeholder="At least 6 characters">
+                </div>
+                <div class="form-group">
+                    <label>Invitation Code (optional)</label>
+                    <input type="text" id="inviteCode" placeholder="Enter code if invited">
+                    <small style="color: #666;">Leave blank to create a new family</small>
+                </div>
+                <button class="btn" onclick="register()">Register</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Family Setup -->
+    <div class="container hidden" id="familySetupScreen">
+        <div class="header">
+            <h1>Create Your Family</h1>
+            <p>Set up your co-parenting space</p>
+        </div>
+        <div style="padding: 40px;">
+            <div class="form-group">
+                <label>Family Name</label>
+                <input type="text" id="familyName" placeholder="e.g., Smith Family">
+            </div>
+            <div class="form-group">
+                <label>Children's Names (one per line)</label>
+                <textarea id="childrenNames" rows="4" placeholder="Emma&#10;Noah"></textarea>
+            </div>
+            <button class="btn" onclick="createFamily()">Create Family</button>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="container hidden" id="mainApp">
+        <!-- Emergency Banner -->
+        <div class="emergency-banner" onclick="switchTab('emergency')">
+            🚨 EMERGENCY INFO - Click for Quick Access
+        </div>
+
+        <div class="header">
+            <button class="logout-btn" onclick="logout()">Logout</button>
+            <h1>👨‍👩‍👧‍👦 Co-Parent Planner</h1>
+            <p id="userGreeting">Welcome!</p>
+        </div>
+
+        <div style="padding: 30px;">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('children')">👶 Children</button>
+                <button class="tab" onclick="switchTab('calendar')">📅 Calendar</button>
+                <button class="tab" onclick="switchTab('custody')">🏠 Custody</button>
+                <button class="tab parent-only" onclick="switchTab('expenses')">💰 Expenses</button>
+                <button class="tab parent-only" onclick="switchTab('documents')">📄 Documents</button>
+                <button class="tab" onclick="switchTab('emergency')">🚨 Emergency</button>
+                <button class="tab parent-only" onclick="switchTab('settings')">⚙️ Settings</button>
+                <button class="tab" onclick="switchTab('feedback')">💡 Feedback</button>
+            </div>
+
+            <!-- Children Tab -->
+            <div id="children" class="tab-content active">
+                <h2>Children Profiles</h2>
+                <button class="btn btn-success btn-small parent-only" onclick="showAddChildModal()" style="margin: 20px 0;">+ Add Child</button>
+                <div id="childrenList" class="loading">Loading...</div>
+            </div>
+
+            <!-- Calendar Tab -->
+            <div id="calendar" class="tab-content">
+                <h2>Family Calendar</h2>
+                <button class="btn btn-success btn-small" onclick="showAddEventModal()" style="margin: 20px 0;">+ Add Event</button>
+
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterEvents('all')">All Events</button>
+                    <button class="filter-btn" onclick="filterEvents('upcoming')">Upcoming</button>
+                    <button class="filter-btn" onclick="filterEvents('past')">Past</button>
+                </div>
+
+                <div id="calendarEvents" class="loading">Loading...</div>
+            </div>
+
+            <!-- Custody Schedule Tab -->
+            <div id="custody" class="tab-content">
+                <h2>Weekly Custody Schedule</h2>
+                <button class="btn btn-success btn-small parent-only" onclick="showEditCustodyModal()" style="margin: 20px 0;">Edit Schedule</button>
+                <div id="custodySchedule" class="loading">Loading...</div>
+            </div>
+
+            <!-- Expenses Tab -->
+            <div id="expenses" class="tab-content parent-only">
+                <h2>Expenses & Payment History</h2>
+                <button class="btn btn-success btn-small" onclick="showAddExpenseModal()" style="margin: 20px 0;">+ Add Expense</button>
+
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterExpenses('all')">All</button>
+                    <button class="filter-btn" onclick="filterExpenses('pending')">Pending</button>
+                    <button class="filter-btn" onclick="filterExpenses('paid')">Paid</button>
+                </div>
+
+                <div id="expensesList" class="loading">Loading...</div>
+            </div>
+
+            <!-- Documents Tab -->
+            <div id="documents" class="tab-content parent-only">
+                <h2>Document Storage</h2>
+                <button class="btn btn-success btn-small" onclick="showAddDocumentModal()" style="margin: 20px 0;">+ Upload Document</button>
+
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterDocuments('all')">All</button>
+                    <button class="filter-btn" onclick="filterDocuments('medical')">Medical</button>
+                    <button class="filter-btn" onclick="filterDocuments('school')">School</button>
+                    <button class="filter-btn" onclick="filterDocuments('legal')">Legal</button>
+                    <button class="filter-btn" onclick="filterDocuments('insurance')">Insurance</button>
+                </div>
+
+                <div id="documentsList" class="loading">Loading...</div>
+            </div>
+
+            <!-- Emergency Info Tab -->
+            <div id="emergency" class="tab-content">
+                <h2>🚨 Emergency Information</h2>
+                <button class="btn btn-danger btn-small parent-only" onclick="showEditEmergencyModal()" style="margin: 20px 0;">Edit Emergency Info</button>
+                <div id="emergencyInfo" class="loading">Loading...</div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings" class="tab-content parent-only">
+                <h2>Family Settings</h2>
+
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">Invite Co-Parent</h3>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="coParentEmail" placeholder="coparent@email.com">
+                    </div>
+                    <button class="btn btn-success btn-small" onclick="inviteCoParent()">Send Invitation</button>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">Invite Helper (Nanny/Granny)</h3>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="helperEmail" placeholder="helper@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Helper Name</label>
+                        <input type="text" id="helperName" placeholder="e.g., Nanny Sarah">
+                    </div>
+                    <button class="btn btn-success btn-small" onclick="inviteHelper()">Send Invitation</button>
+                </div>
+            </div>
+
+            <!-- Feedback Tab -->
+            <div id="feedback" class="tab-content">
+                <h2>💡 Feature Requests & Feedback</h2>
+                <p style="color: #666; margin-bottom: 20px;">Have an idea to make this app better? Submit your suggestions!</p>
+
+                <div style="background: #e7f3ff; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+                    <h3 style="color: #2196F3; margin-bottom: 15px;">Submit Enhancement Request</h3>
+                    <div class="form-group">
+                        <label>Feature Title</label>
+                        <input type="text" id="feedbackTitle" placeholder="e.g., Add messaging between parents">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="feedbackCategory">
+                            <option value="feature">New Feature</option>
+                            <option value="improvement">Improvement</option>
+                            <option value="bug">Bug Report</option>
+                            <option value="usability">Usability Issue</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select id="feedbackPriority">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="feedbackDescription" rows="5" placeholder="Describe your request in detail..."></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="submitFeedback()">Submit Request</button>
+                </div>
+
+                <h3 style="margin-top: 40px;">Your Submitted Requests</h3>
+                <div id="feedbackList" class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="addChildModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Child Profile</h3>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="childName">
+            </div>
+            <div class="form-group">
+                <label>Birthday</label>
+                <input type="date" id="childBirthday">
+            </div>
+            <div class="form-group">
+                <label>Photo URL (optional)</label>
+                <input type="text" id="childPhoto" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Allergies</label>
+                <textarea id="childAllergies" rows="2" placeholder="None"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Medications</label>
+                <textarea id="childMedications" rows="2" placeholder="None"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Doctor Name</label>
+                <input type="text" id="childDoctor">
+            </div>
+            <div class="form-group">
+                <label>Doctor Phone</label>
+                <input type="tel" id="childDoctorPhone">
+            </div>
+            <div class="form-group">
+                <label>School Name</label>
+                <input type="text" id="childSchool">
+            </div>
+            <div class="form-group">
+                <label>Grade/Class</label>
+                <input type="text" id="childGrade">
+            </div>
+            <div class="form-group">
+                <label>Teacher Name</label>
+                <input type="text" id="childTeacher">
+            </div>
+            <button class="btn" onclick="addChild()">Add Child</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal('addChildModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="addEventModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Calendar Event</h3>
+            <div class="form-group">
+                <label>Event Title</label>
+                <input type="text" id="eventTitle" placeholder="e.g., Doctor Appointment">
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="eventDate">
+            </div>
+            <div class="form-group">
+                <label>Time</label>
+                <input type="time" id="eventTime">
+            </div>
+            <div class="form-group">
+                <label>Child (optional)</label>
+                <select id="eventChild">
+                    <option value="">All children</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="eventNotes" rows="3"></textarea>
+            </div>
+            <button class="btn" onclick="addEvent()">Add Event</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal('addEventModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="addExpenseModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Expense</h3>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="expenseDesc" placeholder="e.g., School Supplies">
+            </div>
+            <div class="form-group">
+                <label>Amount ($)</label>
+                <input type="number" id="expenseAmount" placeholder="0.00" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="expenseCategory">
+                    <option value="education">Education</option>
+                    <option value="medical">Medical</option>
+                    <option value="activities">Activities/Sports</option>
+                    <option value="food">Food/Groceries</option>
+                    <option value="clothing">Clothing</option>
+                    <option value="childcare">Childcare</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Paid By</label>
+                <select id="expensePaidBy">
+                    <option value="parent1">Parent 1</option>
+                    <option value="parent2">Parent 2</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Split</label>
+                <select id="expenseSplit">
+                    <option value="50-50">50/50</option>
+                    <option value="60-40">60/40</option>
+                    <option value="70-30">70/30</option>
+                    <option value="80-20">80/20</option>
+                    <option value="100-0">One parent pays all</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="expenseDate">
+            </div>
+            <button class="btn" onclick="addExpense()">Add Expense</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal('addExpenseModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="addDocumentModal" class="modal">
+        <div class="modal-content">
+            <h3>Upload Document</h3>
+            <div class="form-group">
+                <label>Document Name</label>
+                <input type="text" id="documentName" placeholder="e.g., Birth Certificate">
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="documentCategory">
+                    <option value="medical">Medical Records</option>
+                    <option value="school">School Reports</option>
+                    <option value="legal">Legal/Court Documents</option>
+                    <option value="insurance">Insurance</option>
+                    <option value="birth">Birth Certificates</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>File/URL</label>
+                <input type="text" id="documentUrl" placeholder="Enter URL or description">
+                <small style="color: #666;">Future: File upload coming soon</small>
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="documentNotes" rows="2"></textarea>
+            </div>
+            <button class="btn" onclick="addDocument()">Add Document</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal('addDocumentModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="editCustodyModal" class="modal">
+        <div class="modal-content">
+            <h3>Edit Custody Schedule</h3>
+            <p style="margin-bottom: 20px; color: #666;">Set who has the children each day</p>
+
+            <div id="custodyDaysForm">
+                <!-- Dynamically populated -->
+            </div>
+
+            <button class="btn" onclick="saveCustodySchedule()">Save Schedule</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal('editCustodyModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="editEmergencyModal" class="modal">
+        <div class="modal-content">
+            <h3>Edit Emergency Information</h3>
+
+            <div class="form-group">
+                <label>Primary Emergency Contact</label>
+                <input type="text" id="emergencyContact" placeholder="Parent 1 name and number">
+            </div>
+            <div class="form-group">
+                <label>Secondary Emergency Contact</label>
+                <input type="text" id="emergencyContact2" placeholder="Parent 2 name and number">
+            </div>
+            <div class="form-group">
+                <label>Doctor Name</label>
+                <input type="text" id="emergencyDoctor">
+            </div>
+            <div class="form-group">
+                <label>Doctor Phone</label>
+                <input type="tel" id="emergencyDoctorPhone">
+            </div>
+            <div class="form-group">
+                <label>Hospital/ER</label>
+                <input type="text" id="emergencyHospital">
+            </div>
+            <div class="form-group">
+                <label>School Contact</label>
+                <input type="text" id="emergencySchool">
+            </div>
+            <div class="form-group">
+                <label>Allergies (All Children)</label>
+                <textarea id="emergencyAllergies" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Current Medications</label>
+                <textarea id="emergencyMedications" rows="2"></textarea>
+            </div>
+
+            <button class="btn" onclick="saveEmergencyInfo()">Save Emergency Info</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal('editEmergencyModal')">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyColUdML5MTQr6O_R1N-lcIIeQJoIwkcdI",
+            authDomain: "coparent-app-5c99f.firebaseapp.com",
+            projectId: "coparent-app-5c99f",
+            storageBucket: "coparent-app-5c99f.firebasestorage.app",
+            messagingSenderId: "979607166451",
+            appId: "1:979607166451:web:12fd14f1a57ecf01350686"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        let currentUser = null;
+        let currentFamily = null;
+        let userRole = null;
+        let allEvents = [];
+        let allExpenses = [];
+        let allDocuments = [];
+        let allChildren = [];
+        let currentEventFilter = 'all';
+        let currentExpenseFilter = 'all';
+        let currentDocumentFilter = 'all';
+
+        // Auth
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadUserData();
+            } else {
+                showScreen('authScreen');
+            }
+        });
+
+        function showScreen(screenId) {
+            ['authScreen', 'familySetupScreen', 'mainApp'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        function switchAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            if (tab === 'login') {
+                document.getElementById('loginForm').classList.remove('hidden');
+                document.getElementById('registerForm').classList.add('hidden');
+            } else {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('registerForm').classList.remove('hidden');
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            if (!email || !password) return showNotification('Fill all fields', 'error');
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function register() {
+            const name = document.getElementById('registerName').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const inviteCode = document.getElementById('inviteCode').value.trim();
+
+            if (!name || !email || !password) return showNotification('Fill all fields', 'error');
+            if (password.length < 6) return showNotification('Password must be 6+ characters', 'error');
+
+            try {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                await db.collection('users').doc(userCredential.user.uid).set({
+                    name, email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                if (inviteCode) await joinFamilyWithCode(inviteCode, userCredential.user.uid);
+                showNotification('Registration successful!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function joinFamilyWithCode(code, userId) {
+            const inviteDoc = await db.collection('invitations').doc(code).get();
+            if (!inviteDoc.exists) return showNotification('Invalid code', 'error');
+
+            const invite = inviteDoc.data();
+            await db.collection('families').doc(invite.familyId).collection('members').doc(userId).set({
+                role: invite.role,
+                joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            await db.collection('invitations').doc(code).update({
+                used: true,
+                usedBy: userId,
+                usedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        async function loadUserData() {
+            const familiesSnapshot = await db.collectionGroup('members')
+                .where(firebase.firestore.FieldPath.documentId(), '==', currentUser.uid)
+                .get();
+
+            if (familiesSnapshot.empty) return showScreen('familySetupScreen');
+
+            for (const doc of familiesSnapshot.docs) {
+                const familyId = doc.ref.parent.parent.id;
+                const familyDoc = await db.collection('families').doc(familyId).get();
+                if (familyDoc.exists) {
+                    currentFamily = familyId;
+                    userRole = doc.data().role;
+                    await loadMainApp();
+                    return;
+                }
+            }
+            showScreen('familySetupScreen');
+        }
+
+        async function createFamily() {
+            const familyName = document.getElementById('familyName').value.trim();
+            const childrenText = document.getElementById('childrenNames').value.trim();
+            if (!familyName) return showNotification('Enter family name', 'error');
+
+            const children = childrenText.split('\n').filter(n => n.trim()).map(n => n.trim());
+            if (children.length === 0) return showNotification('Enter at least one child', 'error');
+
+            try {
+                const familyRef = await db.collection('families').add({
+                    name: familyName,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                await familyRef.collection('members').doc(currentUser.uid).set({
+                    role: 'parent',
+                    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Create child profiles
+                for (const childName of children) {
+                    await familyRef.collection('children').add({
+                        name: childName,
+                        createdBy: currentUser.uid,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+
+                showNotification('Family created!', 'success');
+                await loadUserData();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loadMainApp() {
+            showScreen('mainApp');
+            if (userRole === 'helper') {
+                document.querySelectorAll('.parent-only').forEach(el => el.classList.add('hidden'));
+            }
+
+            await Promise.all([
+                loadChildren(),
+                loadCalendarEvents(),
+                loadCustodySchedule(),
+                loadEmergencyInfo(),
+                loadFeedback()
+            ]);
+
+            if (userRole === 'parent') {
+                await Promise.all([
+                    loadExpenses(),
+                    loadDocuments()
+                ]);
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        // Children Functions
+        async function loadChildren() {
+            const container = document.getElementById('childrenList');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const snapshot = await db.collection('families').doc(currentFamily)
+                    .collection('children')
+                    .get();
+
+                allChildren = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                if (allChildren.length === 0) {
+                    container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No children added yet</p>';
+                    return;
+                }
+
+                container.innerHTML = allChildren.map(child => {
+                    const age = child.birthday ? calculateAge(child.birthday) : 'Unknown';
+                    return `
+                        <div class="child-profile-card">
+                            ${child.photo ? `<img src="${child.photo}" class="child-photo" alt="${child.name}">` : ''}
+                            <h2>${child.name}</h2>
+                            <p>Age: ${age}</p>
+
+                            <div class="info-grid" style="margin-top: 20px; color: white;">
+                                ${child.allergies ? `<div><h5>⚠️ Allergies</h5><p>${child.allergies}</p></div>` : ''}
+                                ${child.medications ? `<div><h5>💊 Medications</h5><p>${child.medications}</p></div>` : ''}
+                                ${child.school ? `<div><h5>🏫 School</h5><p>${child.school}</p></div>` : ''}
+                                ${child.grade ? `<div><h5>📚 Grade</h5><p>${child.grade}</p></div>` : ''}
+                                ${child.teacher ? `<div><h5>👨‍🏫 Teacher</h5><p>${child.teacher}</p></div>` : ''}
+                                ${child.doctor ? `<div><h5>👨‍⚕️ Doctor</h5><p>${child.doctor}</p></div>` : ''}
+                                ${child.doctorPhone ? `<div><h5>📞 Doctor Phone</h5><p><a href="tel:${child.doctorPhone}" style="color: white;">${child.doctorPhone}</a></p></div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Update event child dropdown
+                const eventChildSelect = document.getElementById('eventChild');
+                eventChildSelect.innerHTML = '<option value="">All children</option>' +
+                    allChildren.map(child => `<option value="${child.id}">${child.name}</option>`).join('');
+
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function calculateAge(birthday) {
+            const birthDate = new Date(birthday);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            return age;
+        }
+
+        function showAddChildModal() {
+            document.getElementById('addChildModal').classList.add('show');
+        }
+
+        async function addChild() {
+            const name = document.getElementById('childName').value.trim();
+            const birthday = document.getElementById('childBirthday').value;
+            const photo = document.getElementById('childPhoto').value.trim();
+            const allergies = document.getElementById('childAllergies').value.trim();
+            const medications = document.getElementById('childMedications').value.trim();
+            const doctor = document.getElementById('childDoctor').value.trim();
+            const doctorPhone = document.getElementById('childDoctorPhone').value.trim();
+            const school = document.getElementById('childSchool').value.trim();
+            const grade = document.getElementById('childGrade').value.trim();
+            const teacher = document.getElementById('childTeacher').value.trim();
+
+            if (!name) return showNotification('Enter child name', 'error');
+
+            try {
+                await db.collection('families').doc(currentFamily).collection('children').add({
+                    name, birthday, photo, allergies, medications,
+                    doctor, doctorPhone, school, grade, teacher,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Child added!', 'success');
+                closeModal('addChildModal');
+                await loadChildren();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Calendar Functions
+        async function loadCalendarEvents() {
+            const container = document.getElementById('calendarEvents');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const snapshot = await db.collection('families').doc(currentFamily)
+                    .collection('events')
+                    .orderBy('date', 'asc')
+                    .get();
+
+                allEvents = [];
+                for (const doc of snapshot.docs) {
+                    const event = doc.data();
+                    const creatorDoc = await db.collection('users').doc(event.createdBy).get();
+                    allEvents.push({
+                        id: doc.id,
+                        ...event,
+                        creatorName: creatorDoc.data()?.name || 'Unknown'
+                    });
+                }
+
+                displayEvents();
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function displayEvents() {
+            const container = document.getElementById('calendarEvents');
+            const today = new Date().toISOString().split('T')[0];
+
+            let filtered = allEvents.filter(event => {
+                if (currentEventFilter === 'upcoming') return event.date >= today;
+                if (currentEventFilter === 'past') return event.date < today;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No events found</p>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(event => {
+                const isPast = event.date < today;
+                const childName = allChildren.find(c => c.id === event.child)?.name || 'All children';
+                return `
+                    <div class="event-card ${isPast ? 'past' : ''}">
+                        <h4>${event.title}</h4>
+                        <p>📅 ${formatDate(event.date)} ${event.time ? '⏰ ' + event.time : ''}</p>
+                        <p>👶 ${childName}</p>
+                        ${event.notes ? `<p>${event.notes}</p>` : ''}
+                        <div class="event-meta">
+                            👤 Added by ${event.creatorName} •
+                            ${isPast ? '🕒 Past Event' : '📍 Upcoming'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterEvents(filter) {
+            currentEventFilter = filter;
+            document.querySelectorAll('#calendar .filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent.toLowerCase().includes(filter.toLowerCase()));
+            });
+            displayEvents();
+        }
+
+        function showAddEventModal() {
+            document.getElementById('addEventModal').classList.add('show');
+            document.getElementById('eventDate').valueAsDate = new Date();
+        }
+
+        async function addEvent() {
+            const title = document.getElementById('eventTitle').value.trim();
+            const date = document.getElementById('eventDate').value;
+            const time = document.getElementById('eventTime').value;
+            const child = document.getElementById('eventChild').value;
+            const notes = document.getElementById('eventNotes').value.trim();
+
+            if (!title || !date) return showNotification('Fill required fields', 'error');
+
+            try {
+                await db.collection('families').doc(currentFamily).collection('events').add({
+                    title, date, time: time || '', child, notes,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Event added!', 'success');
+                closeModal('addEventModal');
+                await loadCalendarEvents();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Custody Schedule Functions
+        async function loadCustodySchedule() {
+            const container = document.getElementById('custodySchedule');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const doc = await db.collection('families').doc(currentFamily).get();
+                const schedule = doc.data()?.custodySchedule || {};
+
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+                container.innerHTML = '<div class="schedule-grid">' +
+                    days.map(day => {
+                        const parent = schedule[day] || 'Not set';
+                        const className = parent === 'Parent 1' ? 'parent1' : parent === 'Parent 2' ? 'parent2' : '';
+                        return `
+                            <div class="schedule-day ${className}">
+                                <h4>${day}</h4>
+                                <p>${parent}</p>
+                                ${schedule[day + '_pickup'] ? `<small>Pickup: ${schedule[day + '_pickup']}</small>` : ''}
+                            </div>
+                        `;
+                    }).join('') +
+                    '</div>';
+
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function showEditCustodyModal() {
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const form = document.getElementById('custodyDaysForm');
+
+            form.innerHTML = days.map(day => `
+                <div class="form-group">
+                    <label>${day}</label>
+                    <select id="custody_${day}">
+                        <option value="">Not set</option>
+                        <option value="Parent 1">Parent 1</option>
+                        <option value="Parent 2">Parent 2</option>
+                    </select>
+                    <input type="time" id="custody_${day}_pickup" placeholder="Pickup time (optional)" style="margin-top: 5px;">
+                </div>
+            `).join('');
+
+            document.getElementById('editCustodyModal').classList.add('show');
+        }
+
+        async function saveCustodySchedule() {
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const schedule = {};
+
+            days.forEach(day => {
+                schedule[day] = document.getElementById(`custody_${day}`).value;
+                schedule[day + '_pickup'] = document.getElementById(`custody_${day}_pickup`).value;
+            });
+
+            try {
+                await db.collection('families').doc(currentFamily).update({
+                    custodySchedule: schedule,
+                    scheduleUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    scheduleUpdatedBy: currentUser.uid
+                });
+
+                showNotification('Schedule saved!', 'success');
+                closeModal('editCustodyModal');
+                await loadCustodySchedule();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Expense Functions
+        async function loadExpenses() {
+            const container = document.getElementById('expensesList');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const snapshot = await db.collection('families').doc(currentFamily)
+                    .collection('expenses')
+                    .orderBy('createdAt', 'desc')
+                    .get();
+
+                allExpenses = [];
+                for (const doc of snapshot.docs) {
+                    const expense = doc.data();
+                    const creatorDoc = await db.collection('users').doc(expense.createdBy).get();
+                    allExpenses.push({
+                        id: doc.id,
+                        ...expense,
+                        creatorName: creatorDoc.data()?.name || 'Unknown'
+                    });
+                }
+
+                displayExpenses();
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function displayExpenses() {
+            const container = document.getElementById('expensesList');
+
+            let filtered = allExpenses.filter(expense => {
+                if (currentExpenseFilter === 'pending') return expense.status === 'pending';
+                if (currentExpenseFilter === 'paid') return expense.status === 'paid';
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No expenses found</p>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(expense => `
+                <div class="expense-card ${expense.status}">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                        <div>
+                            <h4>${expense.description}</h4>
+                            <small style="color: #666;">📁 ${expense.category} • 📅 ${formatDate(expense.date)}</small>
+                        </div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #667eea;">$${expense.amount}</div>
+                    </div>
+                    <p>💳 Paid by: ${expense.paidBy} • Split: ${expense.split}</p>
+                    <p><span class="status-badge ${expense.status}">${expense.status.toUpperCase()}</span></p>
+                    <div class="expense-meta">
+                        👤 Added by ${expense.creatorName} •
+                        ${expense.createdAt ? formatDateTime(expense.createdAt.toDate()) : 'Just now'}
+                        ${expense.paidAt ? `<br>✅ Paid: ${formatDateTime(expense.paidAt.toDate())}` : ''}
+                    </div>
+                    ${expense.status === 'pending' && userRole === 'parent' ? `<button class="btn btn-success btn-small" style="margin-top: 10px;" onclick="markAsPaid('${expense.id}')">Mark as Paid</button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function filterExpenses(filter) {
+            currentExpenseFilter = filter;
+            document.querySelectorAll('#expenses .filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent.toLowerCase().includes(filter.toLowerCase()));
+            });
+            displayExpenses();
+        }
+
+        function showAddExpenseModal() {
+            document.getElementById('addExpenseModal').classList.add('show');
+            document.getElementById('expenseDate').valueAsDate = new Date();
+        }
+
+        async function addExpense() {
+            const description = document.getElementById('expenseDesc').value.trim();
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const category = document.getElementById('expenseCategory').value;
+            const paidBy = document.getElementById('expensePaidBy').value;
+            const split = document.getElementById('expenseSplit').value;
+            const date = document.getElementById('expenseDate').value;
+
+            if (!description || !amount || !date) return showNotification('Fill required fields', 'error');
+
+            try {
+                await db.collection('families').doc(currentFamily).collection('expenses').add({
+                    description, amount, category, paidBy, split, date,
+                    status: 'pending',
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Expense added!', 'success');
+                closeModal('addExpenseModal');
+                await loadExpenses();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function markAsPaid(expenseId) {
+            if (!confirm('Mark this expense as paid?')) return;
+
+            try {
+                await db.collection('families').doc(currentFamily).collection('expenses').doc(expenseId).update({
+                    status: 'paid',
+                    paidAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    confirmedBy: currentUser.uid
+                });
+
+                showNotification('Marked as paid!', 'success');
+                await loadExpenses();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Documents Functions
+        async function loadDocuments() {
+            const container = document.getElementById('documentsList');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const snapshot = await db.collection('families').doc(currentFamily)
+                    .collection('documents')
+                    .orderBy('createdAt', 'desc')
+                    .get();
+
+                allDocuments = [];
+                for (const doc of snapshot.docs) {
+                    const document = doc.data();
+                    const creatorDoc = await db.collection('users').doc(document.createdBy).get();
+                    allDocuments.push({
+                        id: doc.id,
+                        ...document,
+                        creatorName: creatorDoc.data()?.name || 'Unknown'
+                    });
+                }
+
+                displayDocuments();
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function displayDocuments() {
+            const container = document.getElementById('documentsList');
+
+            let filtered = allDocuments;
+            if (currentDocumentFilter !== 'all') {
+                filtered = allDocuments.filter(doc => doc.category === currentDocumentFilter);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No documents found</p>';
+                return;
+            }
+
+            const categoryIcons = {
+                medical: '🏥',
+                school: '🏫',
+                legal: '⚖️',
+                insurance: '🛡️',
+                birth: '👶',
+                other: '📄'
+            };
+
+            container.innerHTML = filtered.map(doc => `
+                <div class="document-card">
+                    <div style="display: flex; align-items: center; flex: 1;">
+                        <span class="document-icon">${categoryIcons[doc.category] || '📄'}</span>
+                        <div>
+                            <h4>${doc.name}</h4>
+                            <small style="color: #666;">${doc.category} • Uploaded by ${doc.creatorName}</small>
+                            ${doc.notes ? `<p style="color: #666; margin-top: 5px;">${doc.notes}</p>` : ''}
+                            <small style="color: #999; display: block; margin-top: 5px;">
+                                📅 ${doc.createdAt ? formatDateTime(doc.createdAt.toDate()) : 'Just now'}
+                            </small>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        ${doc.url ? `<a href="${doc.url}" target="_blank" class="btn btn-small btn-success">View</a>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterDocuments(filter) {
+            currentDocumentFilter = filter;
+            document.querySelectorAll('#documents .filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent.toLowerCase().includes(filter.toLowerCase()) || (filter === 'all' && btn.textContent.includes('All')));
+            });
+            displayDocuments();
+        }
+
+        function showAddDocumentModal() {
+            document.getElementById('addDocumentModal').classList.add('show');
+        }
+
+        async function addDocument() {
+            const name = document.getElementById('documentName').value.trim();
+            const category = document.getElementById('documentCategory').value;
+            const url = document.getElementById('documentUrl').value.trim();
+            const notes = document.getElementById('documentNotes').value.trim();
+
+            if (!name || !category) return showNotification('Fill required fields', 'error');
+
+            try {
+                await db.collection('families').doc(currentFamily).collection('documents').add({
+                    name, category, url, notes,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Document added!', 'success');
+                closeModal('addDocumentModal');
+                await loadDocuments();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Emergency Info Functions
+        async function loadEmergencyInfo() {
+            const container = document.getElementById('emergencyInfo');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const doc = await db.collection('families').doc(currentFamily).get();
+                const emergency = doc.data()?.emergencyInfo || {};
+
+                if (Object.keys(emergency).length === 0) {
+                    container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No emergency info set. Click "Edit" to add.</p>';
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="emergency-card">
+                        <h4>🚨 Primary Emergency Contact</h4>
+                        <p>${emergency.contact || 'Not set'}</p>
+                    </div>
+                    <div class="emergency-card">
+                        <h4>🚨 Secondary Emergency Contact</h4>
+                        <p>${emergency.contact2 || 'Not set'}</p>
+                    </div>
+                    <div class="emergency-card">
+                        <h4>👨‍⚕️ Doctor</h4>
+                        <p><strong>${emergency.doctor || 'Not set'}</strong></p>
+                        <p><a href="tel:${emergency.doctorPhone}" style="color: #667eea; font-weight: bold; font-size: 1.2em;">${emergency.doctorPhone || 'No phone'}</a></p>
+                    </div>
+                    <div class="emergency-card">
+                        <h4>🏥 Hospital/ER</h4>
+                        <p>${emergency.hospital || 'Not set'}</p>
+                    </div>
+                    <div class="emergency-card">
+                        <h4>🏫 School Contact</h4>
+                        <p>${emergency.school || 'Not set'}</p>
+                    </div>
+                    <div class="emergency-card" style="background: #ffe0e0; border-left-color: #dc3545;">
+                        <h4>⚠️ ALLERGIES</h4>
+                        <p style="font-weight: bold; color: #dc3545;">${emergency.allergies || 'None listed'}</p>
+                    </div>
+                    <div class="emergency-card">
+                        <h4>💊 Current Medications</h4>
+                        <p>${emergency.medications || 'None listed'}</p>
+                    </div>
+                `;
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function showEditEmergencyModal() {
+            document.getElementById('editEmergencyModal').classList.add('show');
+        }
+
+        async function saveEmergencyInfo() {
+            const emergencyData = {
+                contact: document.getElementById('emergencyContact').value.trim(),
+                contact2: document.getElementById('emergencyContact2').value.trim(),
+                doctor: document.getElementById('emergencyDoctor').value.trim(),
+                doctorPhone: document.getElementById('emergencyDoctorPhone').value.trim(),
+                hospital: document.getElementById('emergencyHospital').value.trim(),
+                school: document.getElementById('emergencySchool').value.trim(),
+                allergies: document.getElementById('emergencyAllergies').value.trim(),
+                medications: document.getElementById('emergencyMedications').value.trim(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: currentUser.uid
+            };
+
+            try {
+                await db.collection('families').doc(currentFamily).update({
+                    emergencyInfo: emergencyData
+                });
+
+                showNotification('Emergency info saved!', 'success');
+                closeModal('editEmergencyModal');
+                await loadEmergencyInfo();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Invitation Functions
+        async function inviteCoParent() {
+            const email = document.getElementById('coParentEmail').value.trim();
+            if (!email) return showNotification('Enter email', 'error');
+            await sendInvitation(email, 'parent');
+            document.getElementById('coParentEmail').value = '';
+        }
+
+        async function inviteHelper() {
+            const email = document.getElementById('helperEmail').value.trim();
+            if (!email) return showNotification('Enter email', 'error');
+            await sendInvitation(email, 'helper');
+            document.getElementById('helperEmail').value = '';
+            document.getElementById('helperName').value = '';
+        }
+
+        async function sendInvitation(email, role) {
+            try {
+                const code = 'INV-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+                await db.collection('invitations').doc(code).set({
+                    familyId: currentFamily,
+                    email, role,
+                    invitedBy: currentUser.uid,
+                    invitedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    used: false
+                });
+
+                const roleText = role === 'parent' ? 'Co-Parent' : 'Helper (Calendar Access Only)';
+                alert(`✅ Invitation Created!\n\nCode: ${code}\n\nShare this code with ${email}.\nThey will register as: ${roleText}`);
+                showNotification('Invitation created!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Utility Functions
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+            document.querySelectorAll(`#${modalId} input, #${modalId} textarea, #${modalId} select`).forEach(field => {
+                if (field.type !== 'time' && field.type !== 'date') field.value = '';
+            });
+        }
+
+        async function logout() {
+            if (confirm('Logout?')) {
+                await auth.signOut();
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification show ${type}`;
+            setTimeout(() => notification.classList.remove('show'), 3000);
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        function formatDateTime(date) {
+            return date.toLocaleDateString('en-US') + ' ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Feedback Functions
+        async function submitFeedback() {
+            const title = document.getElementById('feedbackTitle').value.trim();
+            const category = document.getElementById('feedbackCategory').value;
+            const priority = document.getElementById('feedbackPriority').value;
+            const description = document.getElementById('feedbackDescription').value.trim();
+
+            if (!title || !description) return showNotification('Fill required fields', 'error');
+
+            try {
+                await db.collection('feedback').add({
+                    title, category, priority, description,
+                    familyId: currentFamily,
+                    submittedBy: currentUser.uid,
+                    status: 'submitted',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Feedback submitted! Thank you!', 'success');
+                document.getElementById('feedbackTitle').value = '';
+                document.getElementById('feedbackDescription').value = '';
+                await loadFeedback();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loadFeedback() {
+            const container = document.getElementById('feedbackList');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const snapshot = await db.collection('feedback')
+                    .where('submittedBy', '==', currentUser.uid)
+                    .orderBy('createdAt', 'desc')
+                    .get();
+
+                if (snapshot.empty) {
+                    container.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">No feedback submitted yet</p>';
+                    return;
+                }
+
+                const statusColors = {
+                    submitted: '#ffc107',
+                    reviewing: '#2196F3',
+                    planned: '#9c27b0',
+                    completed: '#28a745',
+                    declined: '#dc3545'
+                };
+
+                container.innerHTML = snapshot.docs.map(doc => {
+                    const feedback = doc.data();
+                    return `
+                        <div class="event-card" style="border-left-color: ${statusColors[feedback.status]};">
+                            <h4>${feedback.title}</h4>
+                            <p><strong>Category:</strong> ${feedback.category} • <strong>Priority:</strong> ${feedback.priority}</p>
+                            <p style="margin: 10px 0;">${feedback.description}</p>
+                            <span class="status-badge" style="background: ${statusColors[feedback.status]}; color: white;">${feedback.status.toUpperCase()}</span>
+                            <div class="event-meta">
+                                📅 Submitted: ${feedback.createdAt ? formatDateTime(feedback.createdAt.toDate()) : 'Just now'}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                container.innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Initialize
+        console.log('Co-Parent Planner Pro v2.0 - Enhanced');
+    </script>
+</body>
+</html>
