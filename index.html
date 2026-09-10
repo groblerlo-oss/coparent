@@ -1930,8 +1930,8 @@
                 });
 
                 payments.forEach(payment => {
-                    balances[payment.from] = (balances[payment.from] || 0) - payment.amount;
-                    balances[payment.to] = (balances[payment.to] || 0) + payment.amount;
+                    balances[payment.from] = (balances[payment.from] || 0) + payment.amount;
+                    balances[payment.to] = (balances[payment.to] || 0) - payment.amount;
                 });
 
                 let settlement = null;
