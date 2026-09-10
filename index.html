@@ -1068,6 +1068,37 @@
         .schedule-jump-to-today:hover {
           background: #5568d3;
         }
+
+        /* Mobile Responsive - Schedule Layout */
+        @media (max-width: 768px) {
+          .schedule-days-grid {
+            grid-template-columns: repeat(4, 1fr);
+          }
+
+          .schedule-day-column {
+            min-width: 90px;
+          }
+
+          .schedule-day-header {
+            font-size: 0.8em;
+            padding: 6px;
+          }
+
+          .schedule-activity {
+            padding: 5px 6px;
+            font-size: 0.8em;
+            margin-bottom: 4px;
+          }
+
+          .schedule-activity-name {
+            font-size: 0.75em;
+          }
+
+          .schedule-week-header {
+            font-size: 0.95em;
+            padding: 10px;
+          }
+        }
     </style>
 </head>
 <body>
