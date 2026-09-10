@@ -2030,7 +2030,15 @@
                 if (!familyDoc.exists) return;
 
                 const family = familyDoc.data();
-                const parents = family.parents || [];
+                let parents = family.parents || [];
+
+                // If no parents exist, initialize with default
+                if (parents.length === 0) {
+                    parents = [
+                        {name: currentUser.displayName || 'Parent 1', split: 50},
+                        {name: 'Parent 2', split: 50}
+                    ];
+                }
 
                 const container = document.getElementById('parentsSplitContainer');
                 container.innerHTML = '';
