@@ -1709,6 +1709,7 @@
         let currentUser = null;
         let currentFamily = null;
         let userRole = null;
+        let isNannyUser = false; // Track if current user is a nanny
 
         // Family setup wizard state
         let wizardState = {
@@ -2724,7 +2725,34 @@
             }
         }
 
-        function switchFamily() {
+        // Check if current user is a nanny for this family
+        async function checkIfNanny() {
+          if (!currentFamily || !auth.currentUser) {
+            isNannyUser = false;
+            return;
+          }
+
+          try {
+            const nannyDoc = await db.collection('families')
+              .doc(currentFamily)
+              .collection('nannies')
+              .doc(auth.currentUser.uid)
+              .get();
+
+            isNannyUser = nannyDoc.exists;
+
+            // Show nanny note if applicable
+            const nannyNote = document.getElementById('scheduleNannyNote');
+            if (nannyNote) {
+              nannyNote.style.display = isNannyUser ? 'block' : 'none';
+            }
+          } catch (error) {
+            console.error('Error checking nanny status:', error);
+            isNannyUser = false;
+          }
+        }
+
+        async function switchFamily() {
             const selectedFamily = document.getElementById('familyDropdown').value;
             currentFamily = selectedFamily;
             loadCalendarEvents();
@@ -2736,6 +2764,9 @@
 
             // Initialize activity types in background (non-blocking)
             initializePredefinedActivityTypes();
+
+            // Check if user is a nanny
+            await checkIfNanny();
         }
 
         async function logout() {
