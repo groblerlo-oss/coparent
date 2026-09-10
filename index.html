@@ -2119,10 +2119,12 @@
                             Remaining: <strong>${formatZAR(remaining)}</strong>
                         </div>
                     `;
+                    document.getElementById('settlementText').style.display = 'block';
+                    document.getElementById('settlementProgress').style.display = 'block';
                 } else {
-                    document.getElementById('settlementStatus').innerHTML = `
-                        <div style="color: #4caf50; font-weight: 600;">✅ All settlements balanced!</div>
-                    `;
+                    document.getElementById('settlementText').innerHTML = `<div style="color: #4caf50; font-weight: 600;">✅ All settlements balanced!</div>`;
+                    document.getElementById('settlementProgress').innerHTML = '';
+                    document.getElementById('settlementText').style.display = 'block';
                 }
 
                 // Load and display payment history
