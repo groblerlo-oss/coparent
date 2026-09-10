@@ -949,6 +949,19 @@
                 </select>
                 <button onclick="showCreateFamilyModal()">+ New Family</button>
             </div>
+
+            <!-- Notification Bell (Task 10) -->
+            <div style="position: relative; display: inline-block; margin-left: 20px;">
+                <button id="notificationBell" style="background: none; border: none; font-size: 1.5em; cursor: pointer; position: relative;" onclick="toggleNotificationDropdown()">🔔</button>
+                <span id="notificationBadge" style="position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75em; display: none;">0</span>
+
+                <div id="notificationsDropdown" style="position: absolute; top: 100%; right: 0; background: white; border: 1px solid #ddd; border-radius: 5px; min-width: 300px; max-height: 400px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                    <div style="padding: 15px; border-bottom: 1px solid #ddd; font-weight: 600;">Notifications</div>
+                    <div id="notificationsList" style="max-height: 350px; overflow-y: auto;">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="content">
@@ -1162,6 +1175,36 @@
                 <div class="invite-section">
                     <h3>Family Members</h3>
                     <div id="membersList"></div>
+                </div>
+
+                <!-- Nanny Management (Task 9) -->
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd;">
+                    <h3>👶 Nanny Management</h3>
+                    <p style="color: #666; margin-bottom: 15px;">Invite nannies to view the schedule and add events.</p>
+
+                    <button onclick="showInviteNannyModal()" style="padding: 10px 20px; background: #4caf50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; margin-bottom: 15px;">+ Invite Nanny</button>
+
+                    <div id="nannyList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Invite Nanny Modal -->
+                <div id="inviteNannyModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 999;">
+                    <div style="background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%;">
+                        <h2>Invite Nanny</h2>
+
+                        <label for="nannyEmail" style="display: block; margin-top: 15px; font-weight: 600;">Email address</label>
+                        <input type="email" id="nannyEmail" placeholder="nanny@example.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+
+                        <label for="nannyName" style="display: block; margin-top: 15px; font-weight: 600;">Name (optional)</label>
+                        <input type="text" id="nannyName" placeholder="Nanny name" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+
+                        <div style="margin-top: 20px; display: flex; gap: 10px;">
+                            <button class="btn" onclick="sendNannyInvite()" style="flex: 1;">Send Invite</button>
+                            <button class="btn-secondary" onclick="closeInviteNannyModal()" style="flex: 1; background: #999; color: white;">Cancel</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2126,6 +2169,7 @@
                     editHistory: editHistory
                 });
 
+                addNotification(`✏️ Event updated: Time changed ${oldTime} → ${newTime}`, 'info');
                 showNotification('Event time updated successfully!', 'success');
                 closeEventDetailsModal();
                 loadCalendarEvents();
@@ -2240,6 +2284,7 @@
 
                 await db.collection('families').doc(currentFamily).collection('events').add(eventData);
 
+                addNotification(`📌 Event created: ${title}`, 'success');
                 showNotification('Event added successfully!', 'success');
                 closeAddEventModal();
                 loadCalendarEvents();
@@ -3368,7 +3413,156 @@
             } else {
                 originalSwitchTab.call(this, tabName);
             }
+
+            // Load nanny list when switching to settings (Task 9)
+            if (tabName === 'settings') {
+                loadNannyList();
+            }
         };
+
+        // ===== TASK 9: Nanny Management =====
+        function showInviteNannyModal() {
+            document.getElementById('inviteNannyModal').classList.remove('hidden');
+        }
+
+        function closeInviteNannyModal() {
+            document.getElementById('inviteNannyModal').classList.add('hidden');
+            document.getElementById('nannyEmail').value = '';
+            document.getElementById('nannyName').value = '';
+        }
+
+        async function sendNannyInvite() {
+            const email = document.getElementById('nannyEmail').value.trim();
+            const name = document.getElementById('nannyName').value.trim();
+
+            if (!email) {
+                showNotification('Please enter an email address', 'error');
+                return;
+            }
+
+            try {
+                // Create nanny document with pending status
+                await db.collection('families').doc(currentFamily)
+                    .collection('nannies')
+                    .add({
+                        email: email,
+                        name: name || 'Nanny',
+                        status: 'pending',
+                        permissions: ['view_schedule', 'add_events'],
+                        addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        addedBy: currentUser.uid
+                    });
+
+                addNotification(`👶 Nanny invited: ${email}`, 'info');
+                showNotification(`Invite sent to ${email}!`, 'success');
+                closeInviteNannyModal();
+                loadNannyList();
+            } catch (error) {
+                showNotification('Error sending invite: ' + error.message, 'error');
+            }
+        }
+
+        async function loadNannyList() {
+            try {
+                const nanniesSnap = await db.collection('families').doc(currentFamily)
+                    .collection('nannies')
+                    .get();
+
+                const nannyListDiv = document.getElementById('nannyList');
+
+                if (nanniesSnap.empty) {
+                    nannyListDiv.innerHTML = '<p style="color: #999;">No nannies invited yet</p>';
+                    return;
+                }
+
+                let html = '<table style="width: 100%; border-collapse: collapse;"><tr style="background: #f5f5f5;"><th style="padding: 10px; text-align: left;">Name</th><th style="padding: 10px; text-align: left;">Email</th><th style="padding: 10px; text-align: left;">Status</th><th style="padding: 10px;">Action</th></tr>';
+
+                nanniesSnap.docs.forEach(doc => {
+                    const nanny = doc.data();
+                    html += `
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 10px;">${nanny.name}</td>
+                            <td style="padding: 10px;">${nanny.email}</td>
+                            <td style="padding: 10px;">${nanny.status}</td>
+                            <td style="padding: 10px;"><button onclick="removeNanny('${doc.id}')" style="padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">Remove</button></td>
+                        </tr>
+                    `;
+                });
+
+                html += '</table>';
+                nannyListDiv.innerHTML = html;
+            } catch (error) {
+                document.getElementById('nannyList').innerHTML = `<p style="color: #dc3545;">Error loading nannies: ${error.message}</p>`;
+            }
+        }
+
+        async function removeNanny(nannyId) {
+            if (!confirm('Remove this nanny?')) return;
+
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('nannies')
+                    .doc(nannyId)
+                    .delete();
+
+                addNotification('👶 Nanny removed', 'info');
+                showNotification('Nanny removed', 'success');
+                loadNannyList();
+            } catch (error) {
+                showNotification('Error removing nanny: ' + error.message, 'error');
+            }
+        }
+
+        // Global flag for nanny detection
+        let isNanny = false;
+
+        // ===== TASK 10: Notification System =====
+        let notifications = [];
+
+        function toggleNotificationDropdown() {
+            const dropdown = document.getElementById('notificationsDropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function addNotification(message, type = 'info') {
+            notifications.unshift({
+                message: message,
+                type: type,
+                timestamp: new Date()
+            });
+
+            // Keep only last 50
+            if (notifications.length > 50) {
+                notifications = notifications.slice(0, 50);
+            }
+
+            updateNotificationDisplay();
+        }
+
+        function updateNotificationDisplay() {
+            const badge = document.getElementById('notificationBadge');
+            const list = document.getElementById('notificationsList');
+
+            badge.textContent = notifications.length;
+            badge.style.display = notifications.length > 0 ? 'flex' : 'none';
+
+            if (notifications.length === 0) {
+                list.innerHTML = '<div style="padding: 20px; color: #999; text-align: center;">No notifications</div>';
+                return;
+            }
+
+            list.innerHTML = notifications.map((n, idx) => `
+                <div style="padding: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; hover: background: #f5f5f5;" onclick="dismissNotification(${idx})">
+                    <div style="font-weight: 600; margin-bottom: 3px;">${n.message}</div>
+                    <div style="font-size: 0.85em; color: #999;">${n.timestamp.toLocaleTimeString()}</div>
+                </div>
+            `).join('');
+        }
+
+        function dismissNotification(idx) {
+            notifications.splice(idx, 1);
+            updateNotificationDisplay();
+        }
     </script>
 </body>
 </html>
