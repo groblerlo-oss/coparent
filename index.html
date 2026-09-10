@@ -1901,11 +1901,9 @@
         async function calculateSettlement(familyId) {
             try {
                 const expensesSnap = await db.collection('families').doc(familyId).collection('expenses').get();
-                const paymentsSnap = await db.collection('families').doc(familyId).collection('payments').get();
                 const familyDoc = await db.collection('families').doc(familyId).get();
 
                 const expenses = expensesSnap.docs.map(doc => doc.data());
-                const payments = paymentsSnap.docs.map(doc => doc.data());
                 const parents = familyDoc.data().parents || [];
 
                 if (expenses.length === 0 || parents.length === 0) {
@@ -1929,11 +1927,6 @@
                     balances[parent.name] = paid - fairShare;
                 });
 
-                payments.forEach(payment => {
-                    balances[payment.from] = (balances[payment.from] || 0) + payment.amount;
-                    balances[payment.to] = (balances[payment.to] || 0) - payment.amount;
-                });
-
                 let settlement = null;
                 for (const [name, balance] of Object.entries(balances)) {
                     if (balance < 0) {
@@ -1951,6 +1944,9 @@
                         break;
                     }
                 }
+
+                const paymentsSnap = await db.collection('families').doc(familyId).collection('payments').get();
+                const payments = paymentsSnap.docs.map(doc => doc.data());
 
                 return { totalExpenses, fairShare, balances, settlement, totalPaid, payments: payments };
             } catch (error) {
