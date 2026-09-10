@@ -381,6 +381,94 @@
             margin-left: 8px;
         }
 
+        /* Monthly Calendar Grid Styles */
+        .calendar-cell {
+            background: white;
+            padding: 10px;
+            min-height: 120px;
+            border: 1px solid #eee;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .calendar-cell:hover {
+            background: #f5f5f5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .calendar-cell.other-month {
+            background: #f9f9f9;
+            color: #ccc;
+        }
+
+        .calendar-cell.today {
+            background: #e3f2fd;
+            border: 2px solid #667eea;
+            font-weight: 600;
+        }
+
+        .calendar-date {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 0.95em;
+        }
+
+        .calendar-cell.other-month .calendar-date {
+            color: #ccc;
+        }
+
+        .calendar-events {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 5px;
+        }
+
+        .event-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .event-dot:hover {
+            transform: scale(1.2);
+        }
+
+        .event-dot.appointment {
+            background: #dc3545;
+        }
+
+        .event-dot.activity {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .event-dot.note {
+            background: #6c757d;
+        }
+
+        .event-dot.general {
+            background: #667eea;
+        }
+
+        .event-more {
+            font-size: 10px;
+            color: #999;
+            margin-top: 3px;
+        }
+
         .filter-buttons {
             display: flex;
             gap: 10px;
@@ -979,14 +1067,39 @@
                 <h2>Family Calendar</h2>
                 <button class="btn btn-success" onclick="showAddEventModal()" style="max-width: 300px; margin: 20px 0;">+ Add Event</button>
 
+                <!-- Month Navigation -->
+                <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <button onclick="previousMonth()" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">← Previous</button>
+                    <h3 id="monthDisplay" style="margin: 0; flex: 1; text-align: center; min-width: 200px;">September 2026</h3>
+                    <button onclick="nextMonth()" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Next →</button>
+                </div>
+
+                <!-- Monthly Calendar Grid -->
+                <div style="background: #ddd; padding: 2px; border-radius: 5px; margin-bottom: 20px;">
+                    <!-- Day headers (Sun-Sat) -->
+                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 2px;">
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Sun</div>
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Mon</div>
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Tue</div>
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Wed</div>
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Thu</div>
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Fri</div>
+                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Sat</div>
+                    </div>
+
+                    <!-- Dates populated by JavaScript -->
+                    <div id="calendarDates" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;"></div>
+                </div>
+
                 <!-- Filter Buttons -->
-                <div class="filter-buttons">
+                <div class="filter-buttons" style="margin-top: 20px;">
                     <button class="filter-btn active" onclick="setCalendarFilter('active')">Active Only</button>
                     <button class="filter-btn" onclick="setCalendarFilter('all')">Show All</button>
                     <button class="filter-btn" onclick="setCalendarFilter('past')">Past Only</button>
                 </div>
 
-                <div id="calendarEvents"></div>
+                <!-- Event List View (Optional - for viewing filtered events) -->
+                <div id="calendarEventsList" style="margin-top: 20px;"></div>
             </div>
 
             <!-- Weekly Schedule Tab (Parents Only) -->
@@ -1844,6 +1957,8 @@
                         btn.classList.add('active');
                     }
                 });
+                // Render the monthly calendar
+                renderMonthlyCalendar();
             }
             if (tabName === 'documents' && userRole === 'parent') {
                 loadDocuments();
@@ -2011,101 +2126,159 @@
             });
             event.target.classList.add('active');
 
-            // Reload events with new filter
-            loadCalendarEvents();
+            // Reload calendar with new filter
+            renderMonthlyCalendar();
         }
 
-        async function loadCalendarEvents() {
-            const eventsDiv = document.getElementById('calendarEvents');
-            eventsDiv.innerHTML = '<div class="loading">Loading events...</div>';
+        // Monthly Calendar Variables
+        let currentDisplayDate = new Date();
 
-            try {
-                const eventsSnapshot = await db.collection('families').doc(currentFamily)
-                    .collection('events')
-                    .orderBy('date', 'asc')
-                    .limit(100)
-                    .get();
+        function previousMonth() {
+            currentDisplayDate.setMonth(currentDisplayDate.getMonth() - 1);
+            renderMonthlyCalendar();
+        }
 
-                eventsDiv.innerHTML = '';
+        function nextMonth() {
+            currentDisplayDate.setMonth(currentDisplayDate.getMonth() + 1);
+            renderMonthlyCalendar();
+        }
 
-                if (eventsSnapshot.empty) {
-                    eventsDiv.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No events yet. Add your first event!</p>';
-                    return;
+        async function renderMonthlyCalendar() {
+            const year = currentDisplayDate.getFullYear();
+            const month = currentDisplayDate.getMonth();
+
+            // Update header
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('monthDisplay').textContent = `${monthNames[month]} ${year}`;
+
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+            // Load events for the month
+            let monthEvents = {};
+            if (currentFamily) {
+                const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+                const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+                try {
+                    const eventsSnap = await db.collection('families').doc(currentFamily)
+                        .collection('events')
+                        .orderBy('date', 'asc')
+                        .get();
+
+                    let events = eventsSnap.docs.map(doc => ({
+                        ...doc.data(),
+                        id: doc.id
+                    }));
+
+                    // Expand recurring events
+                    events = expandRecurringEvents(events);
+
+                    // Calculate archive status
+                    events = calculateArchiveStatus(events);
+
+                    // Filter to only events in this month
+                    events = events.filter(e => e.date >= startDate && e.date <= endDate);
+
+                    // Get filter type
+                    const filterType = localStorage.getItem('calendarFilter') || 'active';
+
+                    // Apply filter
+                    events = filterCalendarEvents(events, filterType);
+
+                    // Group by date
+                    events.forEach(event => {
+                        if (!monthEvents[event.date]) monthEvents[event.date] = [];
+                        monthEvents[event.date].push(event);
+                    });
+                } catch (error) {
+                    console.error('Error loading calendar events:', error);
                 }
+            }
 
-                // Convert snapshot to array with IDs
-                let events = eventsSnapshot.docs.map(doc => ({
-                    ...doc.data(),
-                    id: doc.id
-                }));
+            // Build calendar grid
+            const calendarDates = document.getElementById('calendarDates');
+            calendarDates.innerHTML = '';
 
-                // Expand recurring events
-                events = expandRecurringEvents(events);
+            // Previous month's trailing dates
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const date = daysInPrevMonth - i;
+                const cell = createCalendarCell(date, true, [], year, month - 1);
+                calendarDates.appendChild(cell);
+            }
 
-                // Calculate archive status for all events
-                events = calculateArchiveStatus(events);
+            // Current month dates
+            const today = new Date();
+            for (let date = 1; date <= daysInMonth; date++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                const events = monthEvents[dateStr] || [];
+                const isToday = date === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                const cell = createCalendarCell(date, false, events, year, month, isToday);
+                calendarDates.appendChild(cell);
+            }
 
-                // Sort by date
-                events.sort((a, b) => new Date(a.date) - new Date(b.date));
+            // Next month's leading dates
+            const totalCells = firstDay + daysInMonth;
+            const remainingCells = 42 - totalCells;
+            for (let date = 1; date <= remainingCells; date++) {
+                const cell = createCalendarCell(date, true, [], year, month + 1);
+                calendarDates.appendChild(cell);
+            }
+        }
 
-                // Get filter state from localStorage (default to 'active')
-                const filterType = localStorage.getItem('calendarFilter') || 'active';
+        function createCalendarCell(date, otherMonth, events, year, month, isToday = false) {
+            const cell = document.createElement('div');
+            cell.className = 'calendar-cell' + (otherMonth ? ' other-month' : '') + (isToday ? ' today' : '');
 
-                // Apply filter
-                events = filterCalendarEvents(events, filterType);
+            const dateDiv = document.createElement('div');
+            dateDiv.className = 'calendar-date';
+            dateDiv.textContent = date;
+            cell.appendChild(dateDiv);
 
-                if (events.length === 0) {
-                    eventsDiv.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No events to display.</p>';
-                    return;
-                }
+            // Add event dots
+            if (!otherMonth && events.length > 0) {
+                const eventsDiv = document.createElement('div');
+                eventsDiv.className = 'calendar-events';
 
-                events.forEach(event => {
-                    const eventDiv = document.createElement('div');
-                    eventDiv.className = 'calendar-event';
-                    if (event.isArchived) {
-                        eventDiv.classList.add('archived');
-                    }
-
-                    // Create title link safely
-                    const titleLink = document.createElement('h4');
-                    titleLink.style.cursor = 'pointer';
-                    titleLink.style.color = '#667eea';
-                    titleLink.textContent = event.title;
-                    titleLink.onclick = (e) => {
+                events.slice(0, 4).forEach(event => {
+                    const dot = document.createElement('div');
+                    dot.className = `event-dot ${event.category || 'general'}`;
+                    dot.title = event.title;
+                    dot.textContent = event.title.substring(0, 1);
+                    dot.onclick = (e) => {
                         e.stopPropagation();
                         showEventDetails(event.id, event);
                     };
-
-                    // Add past badge if needed
-                    if (event.isArchived) {
-                        const badgeSpan = document.createElement('span');
-                        badgeSpan.className = 'past-badge';
-                        badgeSpan.textContent = '📋 Past';
-                        titleLink.appendChild(badgeSpan);
-                    }
-
-                    // Create date/time paragraph
-                    const dateP = document.createElement('p');
-                    dateP.textContent = '📅 ' + event.date + (event.time ? ' ⏰ ' + event.time : '');
-
-                    // Create notes paragraph if present
-                    const notesP = document.createElement('p');
-                    if (event.notes) {
-                        notesP.textContent = event.notes;
-                    }
-
-                    eventDiv.appendChild(titleLink);
-                    eventDiv.appendChild(dateP);
-                    if (event.notes) {
-                        eventDiv.appendChild(notesP);
-                    }
-
-                    eventDiv.addEventListener('click', () => showEventDetails(event.id, event));
-                    eventsDiv.appendChild(eventDiv);
+                    eventsDiv.appendChild(dot);
                 });
-            } catch (error) {
-                eventsDiv.innerHTML = `<p style="color: #dc3545;">Error loading events: ${error.message}</p>`;
+
+                if (events.length > 4) {
+                    const more = document.createElement('div');
+                    more.className = 'event-more';
+                    more.textContent = `+${events.length - 4}`;
+                    eventsDiv.appendChild(more);
+                }
+
+                cell.appendChild(eventsDiv);
             }
+
+            // Click on cell to show details
+            if (!otherMonth) {
+                cell.onclick = () => {
+                    if (events.length > 0) {
+                        showEventDetails(events[0].id, events[0]);
+                    }
+                };
+            }
+
+            return cell;
+        }
+
+        async function loadCalendarEvents() {
+            // Initialize calendar on load
+            await renderMonthlyCalendar();
         }
 
         function showEventDetails(eventId, eventData) {
