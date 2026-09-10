@@ -9,8 +9,7 @@ service cloud.firestore {
 
     // Helper function to check if user is a nanny in a family
     function isNanny(familyId) {
-      return exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'nanny';
+      return exists(/databases/$(database)/documents/families/$(familyId)/nannies/$(request.auth.uid));
     }
 
     // Users collection
