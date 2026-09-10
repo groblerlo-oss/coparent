@@ -783,14 +783,63 @@
                     <button class="btn btn-secondary" onclick="hideAddExpenseForm()">Cancel</button>
                 </div>
 
+                <!-- Record Payment Form (initially hidden) -->
+                <div id="paymentForm" class="expense-form" style="display: none;">
+                    <h3>Record Payment</h3>
+                    <div class="form-group">
+                        <label for="paymentFrom">From (Payer):</label>
+                        <select id="paymentFrom">
+                            <option value="">Select parent...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentTo">To (Recipient):</label>
+                        <select id="paymentTo">
+                            <option value="">Select parent...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentAmount">Amount (ZAR):</label>
+                        <input type="number" id="paymentAmount" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentDate">Date:</label>
+                        <input type="date" id="paymentDate">
+                    </div>
+                    <div id="paymentValidationWarning" class="error-message" style="display: none; margin-bottom: 15px;"></div>
+                    <button class="btn" id="recordPaymentBtn" onclick="recordPayment()">Record Payment</button>
+                    <button class="btn btn-secondary" id="cancelPaymentBtn" onclick="hidePaymentForm()">Cancel</button>
+                </div>
+
                 <!-- Expenses List -->
                 <div id="expensesList" style="margin-top: 30px;">
                     <!-- Expenses rendered here -->
                 </div>
 
                 <!-- Settlement Summary -->
-                <div id="settlementSummary" class="settlement-box hidden" style="display: none; margin-top: 30px;">
-                    <!-- Settlement info rendered here -->
+                <div id="settlementSummary" class="settlement-box hidden" style="margin-top: 30px;">
+                    <!-- Settlement Status with Progress -->
+                    <div id="settlementStatus" style="margin: 15px 0; padding: 15px; background: #fff9e6; border-radius: 5px; border-left: 4px solid #ffa726;">
+                        <div id="settlementText" style="font-weight: 600; color: #333; margin-bottom: 10px;"></div>
+                        <div id="settlementProgress" style="margin-top: 10px;"></div>
+                        <button id="recordPaymentFormBtn" onclick="showPaymentForm()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; width: 100%;">Record Payment</button>
+                    </div>
+
+                    <!-- Payment History (Expandable) -->
+                    <div style="margin-top: 15px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
+                        <button onclick="togglePaymentHistory(this)"
+                                aria-expanded="false"
+                                aria-controls="paymentHistoryContent"
+                                style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; background: none; border: none; width: 100%; padding: 0; font: inherit;">
+                            <span style="font-weight: 600; color: #333;">📋 Payment History</span>
+                            <span id="paymentHistoryToggle" style="color: #667eea; font-weight: bold;">▼</span>
+                        </button>
+                        <div id="paymentHistoryContent" style="display: none; margin-top: 10px; max-height: 300px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px; background-color: #f5f5f5;">
+                            <div id="paymentHistoryList" style="font-size: 0.95em;">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1366,6 +1415,7 @@
                 loadDocuments();
             }
             if (tabName === 'expenses' && userRole === 'parent') {
+                document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
                 loadExpenses();
             }
             if (tabName === 'settings' && userRole === 'parent') {
@@ -1798,6 +1848,132 @@
             document.getElementById('expenseNotes').value = '';
         }
 
+        function showPaymentForm() {
+            const fromSelect = document.getElementById('paymentFrom');
+            const toSelect = document.getElementById('paymentTo');
+
+            const familyRef = db.collection('families').doc(currentFamily);
+            familyRef.get().then(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+
+                    fromSelect.innerHTML = '<option value="">Select parent...</option>';
+                    toSelect.innerHTML = '<option value="">Select parent...</option>';
+                    (data.parents || []).forEach(parent => {
+                        const optionFrom = document.createElement('option');
+                        optionFrom.value = parent.name;
+                        optionFrom.textContent = parent.name;
+                        fromSelect.appendChild(optionFrom);
+
+                        const optionTo = document.createElement('option');
+                        optionTo.value = parent.name;
+                        optionTo.textContent = parent.name;
+                        toSelect.appendChild(optionTo);
+                    });
+                }
+            });
+
+            document.getElementById('paymentForm').style.display = 'block';
+        }
+
+        function hidePaymentForm() {
+            document.getElementById('paymentForm').style.display = 'none';
+        }
+
+        function clearPaymentForm() {
+            document.getElementById('paymentFrom').value = '';
+            document.getElementById('paymentTo').value = '';
+            document.getElementById('paymentAmount').value = '';
+            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('paymentValidationWarning').style.display = 'none';
+        }
+
+        // Task 5 Helper Functions
+        function formatZAR(amount) {
+            return new Intl.NumberFormat('en-ZA', {
+                style: 'currency',
+                currency: 'ZAR',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        async function calculateSettlement(familyId) {
+            try {
+                const expensesSnap = await db.collection('families').doc(familyId).collection('expenses').get();
+                const paymentsSnap = await db.collection('families').doc(familyId).collection('payments').get();
+                const familyDoc = await db.collection('families').doc(familyId).get();
+
+                const expenses = expensesSnap.docs.map(doc => doc.data());
+                const payments = paymentsSnap.docs.map(doc => doc.data());
+                const parents = familyDoc.data().parents || [];
+
+                if (expenses.length === 0 || parents.length === 0) {
+                    return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
+                }
+
+                let totalExpenses = 0;
+                let paidByParent = {};
+                expenses.forEach(exp => {
+                    totalExpenses += exp.amount;
+                    paidByParent[exp.paidBy] = (paidByParent[exp.paidBy] || 0) + exp.amount;
+                });
+
+                const fairShare = totalExpenses / parents.length;
+                let balances = {};
+                let totalPaid = {};
+
+                parents.forEach(parent => {
+                    const paid = paidByParent[parent.name] || 0;
+                    totalPaid[parent.name] = paid;
+                    balances[parent.name] = paid - fairShare;
+                });
+
+                payments.forEach(payment => {
+                    balances[payment.from] = (balances[payment.from] || 0) - payment.amount;
+                    balances[payment.to] = (balances[payment.to] || 0) + payment.amount;
+                });
+
+                let settlement = null;
+                for (const [name, balance] of Object.entries(balances)) {
+                    if (balance < 0) {
+                        const owed = Math.abs(balance);
+                        for (const [creditor, creditorBalance] of Object.entries(balances)) {
+                            if (creditor !== name && creditorBalance > 0) {
+                                settlement = {
+                                    from: name,
+                                    to: creditor,
+                                    amount: Math.min(owed, creditorBalance)
+                                };
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                return { totalExpenses, fairShare, balances, settlement, totalPaid, payments: payments };
+            } catch (error) {
+                console.error('Error calculating settlement:', error);
+                return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
+            }
+        }
+
+        async function calculateRemainingBalance(familyId, settlement) {
+            if (!settlement) return 0;
+
+            const paymentsSnap = await db.collection('families').doc(familyId)
+                .collection('payments')
+                .where('from', '==', settlement.from)
+                .where('to', '==', settlement.to)
+                .get();
+
+            const payments = paymentsSnap.docs.map(doc => doc.data());
+            const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
+            return Math.max(0, settlement.amount - totalPaid);
+        }
+
         async function saveExpense() {
             const amount = parseFloat(document.getElementById('expenseAmount').value);
             const description = document.getElementById('expenseDescription').value.trim();
@@ -1917,7 +2093,69 @@
 
                 expensesList.appendChild(table);
 
-                await loadSettlement(expenses);
+                // Calculate and display settlement
+                const settlement = await calculateSettlement(currentFamily);
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+
+                if (settlement.settlement) {
+                    const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement);
+                    const totalPaid = settlement.settlement.amount - remaining;
+                    const progressPercent = (totalPaid / settlement.settlement.amount) * 100;
+
+                    const settlementText = `${settlement.settlement.from} owes ${settlement.settlement.to} ${formatZAR(settlement.settlement.amount)}`;
+                    document.getElementById('settlementText').innerHTML = settlementText;
+
+                    const statusEmoji = remaining <= 0 ? '✅' : '⏳';
+
+                    document.getElementById('settlementProgress').innerHTML = `
+                        <div style="margin-bottom: 10px; font-size: 0.95em;">
+                            <strong>${statusEmoji} Progress:</strong> Paid ${formatZAR(totalPaid)} of ${formatZAR(settlement.settlement.amount)}
+                            ${remaining <= 0 ? '(SETTLED)' : `(${Math.round(progressPercent)}%)`}
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
+                            <div style="height: 100%; background: ${remaining <= 0 ? '#4caf50' : '#667eea'}; width: ${Math.min(progressPercent, 100)}%; transition: width 0.3s;"></div>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                            Remaining: <strong>${formatZAR(remaining)}</strong>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('settlementStatus').innerHTML = `
+                        <div style="color: #4caf50; font-weight: 600;">✅ All settlements balanced!</div>
+                    `;
+                }
+
+                // Load and display payment history
+                await displayPaymentHistory(currentFamily);
+
+                // Populate parent dropdowns in payment form
+                const parents = settlement.settlement ?
+                    [settlement.settlement.from, settlement.settlement.to] :
+                    (familyDoc.data().parents || []).map(p => p.name);
+
+                const fromSelect = document.getElementById('paymentFrom');
+                const toSelect = document.getElementById('paymentTo');
+                fromSelect.innerHTML = '<option value="">Select parent</option>';
+                toSelect.innerHTML = '<option value="">Select parent</option>';
+
+                parents.forEach(parent => {
+                    if (typeof parent === 'string') {
+                        fromSelect.innerHTML += `<option value="${parent}">${parent}</option>`;
+                        toSelect.innerHTML += `<option value="${parent}">${parent}</option>`;
+                    }
+                });
+
+                // Pre-fill payment form if there's an active settlement
+                if (settlement.settlement) {
+                    document.getElementById('paymentFrom').value = settlement.settlement.from;
+                    document.getElementById('paymentTo').value = settlement.settlement.to;
+                    document.getElementById('paymentAmount').value = await calculateRemainingBalance(currentFamily, settlement.settlement);
+                    document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+                }
+
+                // Show the settlement summary
+                document.getElementById('settlementSummary').classList.remove('hidden');
+                document.getElementById('settlementSummary').style.display = 'block';
             } catch (error) {
                 expensesList.innerHTML = `<p style="color: #dc3545;">Error loading expenses: ${error.message}</p>`;
             }
@@ -2095,6 +2333,136 @@
             } catch (error) {
                 showNotification(error.message, 'error');
             }
+        }
+
+        // Payment History Toggle Function
+        function togglePaymentHistory(button) {
+            const isExpanded = button.getAttribute('aria-expanded') === 'true';
+            const content = document.getElementById('paymentHistoryContent');
+            const toggle = document.getElementById('paymentHistoryToggle');
+
+            if (isExpanded) {
+                content.style.display = 'none';
+                button.setAttribute('aria-expanded', 'false');
+                toggle.textContent = '▼';
+            } else {
+                content.style.display = 'block';
+                button.setAttribute('aria-expanded', 'true');
+                toggle.textContent = '▲';
+            }
+        }
+
+        // Task 6: Record Payment Function
+        async function recordPayment() {
+            const from = document.getElementById('paymentFrom').value;
+            const to = document.getElementById('paymentTo').value;
+            const amount = parseFloat(document.getElementById('paymentAmount').value);
+            const date = document.getElementById('paymentDate').value;
+
+            if (!from || !to) {
+                alert('Please select both payer and recipient');
+                return;
+            }
+            if (from === to) {
+                alert('Payer and recipient must be different');
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert('Amount must be greater than 0');
+                return;
+            }
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+
+            try {
+                const currentFamily = document.getElementById('familyDropdown').value;
+
+                await db.collection('families').doc(currentFamily).collection('payments').add({
+                    from: from,
+                    to: to,
+                    amount: amount,
+                    date: date,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                hidePaymentForm();
+                clearPaymentForm();
+                loadExpenses();
+
+                showNotification('Payment recorded successfully', 'success');
+            } catch (error) {
+                console.error('Error recording payment:', error);
+                showNotification('Failed to record payment: ' + error.message, 'error');
+            }
+        }
+
+        // Validate Payment Amount
+        async function validatePaymentAmount() {
+            const amount = parseFloat(document.getElementById('paymentAmount').value);
+            const currentFamily = document.getElementById('familyDropdown').value;
+
+            if (!amount || amount <= 0) return;
+
+            const settlement = await calculateSettlement(currentFamily);
+            if (settlement.settlement) {
+                const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement);
+
+                if (amount > remaining) {
+                    document.getElementById('paymentValidationWarning').textContent =
+                        `⚠️ This exceeds remaining balance of ${formatZAR(remaining)}. This will be recorded anyway.`;
+                    document.getElementById('paymentValidationWarning').style.display = 'block';
+                } else {
+                    document.getElementById('paymentValidationWarning').style.display = 'none';
+                }
+            }
+        }
+
+        // Add event listener for payment amount validation
+        document.getElementById('paymentAmount').addEventListener('change', validatePaymentAmount);
+
+        // Task 7: Load and display payment history
+        async function loadPayments(familyId) {
+            try {
+                const paymentsSnap = await db.collection('families').doc(familyId)
+                    .collection('payments')
+                    .orderBy('date', 'desc')
+                    .get();
+
+                const payments = paymentsSnap.docs.map(doc => doc.data());
+                return payments;
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                return [];
+            }
+        }
+
+        async function displayPaymentHistory(familyId) {
+            const payments = await loadPayments(familyId);
+            const historyList = document.getElementById('paymentHistoryList');
+
+            if (payments.length === 0) {
+                historyList.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">No payments recorded yet</div>';
+                return;
+            }
+
+            let html = '';
+            payments.forEach(payment => {
+                html += `
+                    <div style="padding: 8px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between;">
+                        <span>
+                            <strong>${payment.from}</strong> → <strong>${payment.to}</strong>
+                        </span>
+                        <span style="text-align: right;">
+                            <div style="color: #667eea; font-weight: 600;">${formatZAR(payment.amount)}</div>
+                            <div style="font-size: 0.85em; color: #999;">${payment.date}</div>
+                        </span>
+                    </div>
+                `;
+            });
+
+            historyList.innerHTML = html;
         }
     </script>
 </body>
