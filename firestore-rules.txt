@@ -83,6 +83,21 @@ service cloud.firestore {
         allow create: if request.auth.uid != null;
         allow update, delete: if request.auth.uid == resource.data.userId;
       }
+
+      // Weekly Schedule subcollection - detailed activities per day
+      match /weeklySchedule/{weekId} {
+        match /days/{dayId} {
+          allow read: if isParent(familyId) || isNanny(familyId);
+          allow create, update: if isParent(familyId);
+          allow delete: if isParent(familyId);
+        }
+      }
+
+      // Activity Types subcollection - predefined + custom activity types
+      match /activityTypes/{typeId} {
+        allow read: if isParent(familyId) || isNanny(familyId);
+        allow create, update, delete: if isParent(familyId);
+      }
     }
 
     // Invitations collection
