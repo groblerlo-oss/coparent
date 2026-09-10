@@ -1071,32 +1071,99 @@
 
         /* Mobile Responsive - Schedule Layout */
         @media (max-width: 768px) {
+          .schedule-weeks-container {
+            height: auto;
+            max-height: 70vh;
+          }
+
           .schedule-days-grid {
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0px;
           }
 
           .schedule-day-column {
-            min-width: 90px;
+            min-width: 100px;
           }
 
           .schedule-day-header {
-            font-size: 0.8em;
-            padding: 6px;
+            font-size: 0.75em;
+            padding: 4px 2px;
+            word-break: break-word;
+          }
+
+          .schedule-day-header strong {
+            display: block;
+            font-size: 0.9em;
+          }
+
+          .schedule-day-header small {
+            font-size: 0.7em;
+          }
+
+          .schedule-day-content {
+            min-height: 100px;
+            padding: 5px;
           }
 
           .schedule-activity {
-            padding: 5px 6px;
-            font-size: 0.8em;
-            margin-bottom: 4px;
+            padding: 4px 5px;
+            font-size: 0.75em;
+            margin-bottom: 3px;
           }
 
           .schedule-activity-name {
-            font-size: 0.75em;
+            font-size: 0.7em;
+          }
+
+          .schedule-activity-delete {
+            padding: 0 2px;
+            font-size: 1em;
+          }
+
+          .schedule-add-activity-btn {
+            padding: 6px 8px;
+            font-size: 0.8em;
           }
 
           .schedule-week-header {
-            font-size: 0.95em;
-            padding: 10px;
+            font-size: 0.9em;
+            padding: 8px;
+          }
+
+          .schedule-jump-to-today {
+            padding: 8px 16px;
+            font-size: 0.9em;
+            margin: 8px;
+          }
+        }
+
+        /* Extra small phones (under 375px) */
+        @media (max-width: 375px) {
+          .schedule-days-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .schedule-day-column {
+            min-width: 80px;
+          }
+
+          .schedule-day-header {
+            font-size: 0.65em;
+            padding: 3px 1px;
+          }
+
+          .schedule-day-content {
+            min-height: 80px;
+          }
+
+          .schedule-activity {
+            padding: 2px 3px;
+            font-size: 0.65em;
+            margin-bottom: 2px;
+          }
+
+          .schedule-week {
+            margin: 10px 5px;
           }
         }
     </style>
