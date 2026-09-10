@@ -2449,27 +2449,38 @@
             dateDiv.textContent = date;
             cell.appendChild(dateDiv);
 
-            // Add event dots
+            // Add event dots with hover tooltips
             if (!otherMonth && events.length > 0) {
                 const eventsDiv = document.createElement('div');
                 eventsDiv.className = 'calendar-events';
 
-                events.slice(0, 4).forEach(event => {
+                events.slice(0, 3).forEach(event => {
                     const dot = document.createElement('div');
                     dot.className = `event-dot ${event.category || 'general'}`;
-                    dot.title = event.title;
-                    dot.textContent = event.title.substring(0, 1);
+
+                    // Create tooltip text
+                    let tooltipText = event.title;
+                    if (event.time) {
+                        tooltipText += ` @ ${event.time}`;
+                    }
+                    if (event.category) {
+                        tooltipText += ` (${event.category})`;
+                    }
+
+                    dot.title = tooltipText;
+                    dot.style.cursor = 'pointer';
                     dot.onclick = (e) => {
                         e.stopPropagation();
                         showEventDetails(event.id, event);
                     };
+
                     eventsDiv.appendChild(dot);
                 });
 
-                if (events.length > 4) {
+                if (events.length > 3) {
                     const more = document.createElement('div');
                     more.className = 'event-more';
-                    more.textContent = `+${events.length - 4}`;
+                    more.textContent = `+${events.length - 3} more`;
                     eventsDiv.appendChild(more);
                 }
 
