@@ -999,6 +999,35 @@
             parents: []
         };
 
+        /*
+        EVENT SCHEMA UPDATES (stored in families/{familyId}/events/{eventId}):
+        - isArchived: boolean (default false) - set when eventDate + 5 days < today
+        - archivedDate: string (ISO date) - calculated as eventDate + 5 days
+        - recurrence: object {
+            enabled: boolean,
+            pattern: "weekly",
+            daysOfWeek: ["Monday", "Thursday", ...],
+            endDate: null or ISO date string
+          }
+        - editHistory: array [
+            { changedBy: uid, changedByName: string, changedAt: timestamp, field: string, oldValue: any, newValue: any },
+            ...
+          ]
+        - createdByName: string - display name of creator
+
+        SCHEDULE SCHEMA (families/{familyId}/schedule document):
+        - weeklyPattern: array [
+            { day: "Monday", parent: "Louis", timeStart: "00:00", timeEnd: "23:59" },
+            ...
+          ]
+        - startDate: ISO date string
+        - exceptions: array [
+            { date: ISO date, parent: name, reason?: string },
+            ...
+          ]
+        - createdAt, updatedAt: timestamps
+        */
+
         function goToStep2() {
             const familyName = document.getElementById('familyName').value.trim();
             const childrenText = document.getElementById('childrenNames').value.trim();
