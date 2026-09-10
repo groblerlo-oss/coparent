@@ -96,7 +96,8 @@ service cloud.firestore {
       // Activity Types subcollection - predefined + custom activity types
       match /activityTypes/{typeId} {
         allow read: if isParent(familyId) || isNanny(familyId);
-        allow create, update, delete: if isParent(familyId);
+        allow create: if isParent(familyId);
+        allow update, delete: if isParent(familyId);
       }
     }
 
