@@ -4124,41 +4124,243 @@
             return mondayDate.toISOString().split('T')[0];
         }
 
-        // Helper function to create activity element (referenced by loadDayActivities)
+        // Create an activity display element
         function createActivityElement(activity, dateStr) {
-            const activityEl = document.createElement('div');
-            activityEl.className = `schedule-activity ${activity.person || 'daddy'}`;
-            activityEl.innerHTML = `
-                <span class="schedule-activity-name">${activity.name}</span>
-                <button class="schedule-activity-delete" onclick="deleteActivity('${dateStr}', '${activity.id || 0}')">×</button>
-            `;
-            return activityEl;
+          const div = document.createElement('div');
+          div.className = `schedule-activity ${activity.responsible.toLowerCase()}`;
+          div.id = `activity-${activity.id}`;
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'schedule-activity-name';
+          nameSpan.textContent = `${activity.responsible} - ${activity.name}`;
+          if (activity.time) {
+            nameSpan.textContent += ` @ ${activity.time}`;
+          }
+          div.appendChild(nameSpan);
+
+          // Delete button (hidden for nanny)
+          if (!isNannyUser) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'schedule-activity-delete';
+            deleteBtn.textContent = '×';
+            deleteBtn.onclick = (e) => {
+              e.stopPropagation();
+              deleteActivity(activity.id, dateStr);
+            };
+            div.appendChild(deleteBtn);
+          }
+
+          // Click to edit (parent only)
+          if (!isNannyUser) {
+            div.onclick = () => editActivity(activity, dateStr);
+          }
+
+          // Drag to reorder (parent only)
+          if (!isNannyUser) {
+            div.draggable = true;
+            div.ondragstart = (e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/html', div.innerHTML);
+            };
+          }
+
+          return div;
         }
 
-        // Helper function for creating new activity (referenced by loadDayActivities)
-        function startCreateActivity(dateStr, contentDiv) {
-            showNotification('Activity creation form would open here', 'info');
+        // Start creating a new activity
+        function startCreateActivity(dateStr, containerDiv) {
+          if (isNannyUser) {
+            showNotification('Nannies cannot create activities', 'warning');
+            return;
+          }
+
+          const formDiv = document.createElement('div');
+          formDiv.className = 'schedule-inline-edit';
+
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = 'Activity name - Person';
+
+          const personSelect = document.createElement('select');
+          personSelect.innerHTML = `
+            <option value="Daddy">Daddy</option>
+            <option value="Mommy">Mommy</option>
+            <option value="Granny">Granny</option>
+            <option value="Nanny">Nanny</option>
+          `;
+
+          const saveBtn = document.createElement('button');
+          saveBtn.textContent = 'Save';
+          saveBtn.onclick = async () => {
+            await createNewActivity(input.value, personSelect.value, dateStr);
+            containerDiv.removeChild(formDiv);
+            await loadDayActivities(new Date(dateStr), containerDiv);
+          };
+
+          formDiv.appendChild(input);
+          formDiv.appendChild(personSelect);
+          formDiv.appendChild(saveBtn);
+
+          const lastAddBtn = containerDiv.querySelector('.schedule-add-activity-btn');
+          containerDiv.insertBefore(formDiv, lastAddBtn);
+          input.focus();
         }
 
-        // Helper function for deleting activity (referenced by createActivityElement)
-        async function deleteActivity(dateStr, activityId) {
-            if (!confirm('Delete this activity?')) return;
-            try {
-                const weekId = getCurrentWeekId(new Date(dateStr));
-                await db.collection('families')
-                    .doc(currentFamily)
-                    .collection('weeklySchedule')
-                    .doc(weekId)
-                    .collection('days')
-                    .doc(dateStr)
-                    .update({
-                        activities: firebase.firestore.FieldValue.arrayRemove({id: activityId})
-                    });
-                showNotification('Activity deleted', 'success');
-                renderWeeklySchedule();
-            } catch (error) {
-                showNotification('Error deleting activity: ' + error.message, 'error');
-            }
+        // Save new activity to Firestore
+        async function createNewActivity(nameAndPerson, responsible, dateStr) {
+          if (!currentFamily || !nameAndPerson.trim()) return;
+
+          try {
+            const [name, personOverride] = nameAndPerson.includes(' - ')
+              ? nameAndPerson.split(' - ', 2)
+              : [nameAndPerson, responsible];
+
+            const weekId = getCurrentWeekId(new Date(dateStr));
+            const docRef = db.collection('families')
+              .doc(currentFamily)
+              .collection('weeklySchedule')
+              .doc(weekId)
+              .collection('days')
+              .doc(dateStr);
+
+            const doc = await docRef.get();
+            const existingActivities = doc.exists ? (doc.data().activities || []) : [];
+
+            const newActivity = {
+              id: `activity-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              name: name.trim(),
+              responsible: personOverride.trim(),
+              createdAt: new Date(),
+              createdBy: auth.currentUser.uid,
+              order: existingActivities.length
+            };
+
+            await docRef.set({
+              date: dateStr,
+              activities: [...existingActivities, newActivity],
+              updatedAt: new Date()
+            });
+
+            showNotification('Activity added', 'success');
+          } catch (error) {
+            console.error('Error creating activity:', error);
+            showNotification('Error adding activity', 'error');
+          }
+        }
+
+        // Edit existing activity inline
+        function editActivity(activity, dateStr) {
+          const div = document.getElementById(`activity-${activity.id}`);
+          if (!div) return;
+
+          const formDiv = document.createElement('div');
+          formDiv.className = 'schedule-inline-edit';
+
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = `${activity.responsible} - ${activity.name}`;
+
+          const saveBtn = document.createElement('button');
+          saveBtn.textContent = 'Save';
+          saveBtn.onclick = async () => {
+            await updateActivity(activity.id, input.value, dateStr);
+            await reloadDayActivities(dateStr);
+          };
+
+          formDiv.appendChild(input);
+          formDiv.appendChild(saveBtn);
+
+          div.replaceWith(formDiv);
+          input.focus();
+        }
+
+        // Update activity in Firestore
+        async function updateActivity(activityId, nameAndPerson, dateStr) {
+          if (!currentFamily) return;
+
+          try {
+            const [name, responsible] = nameAndPerson.includes(' - ')
+              ? nameAndPerson.split(' - ', 2)
+              : [nameAndPerson, 'Daddy'];
+
+            const weekId = getCurrentWeekId(new Date(dateStr));
+            const docRef = db.collection('families')
+              .doc(currentFamily)
+              .collection('weeklySchedule')
+              .doc(weekId)
+              .collection('days')
+              .doc(dateStr);
+
+            const doc = await docRef.get();
+            const activities = doc.data().activities || [];
+
+            const updated = activities.map(a =>
+              a.id === activityId
+                ? { ...a, name: name.trim(), responsible: responsible.trim(), updatedAt: new Date() }
+                : a
+            );
+
+            await docRef.update({ activities: updated });
+            showNotification('Activity updated', 'success');
+          } catch (error) {
+            console.error('Error updating activity:', error);
+            showNotification('Error updating activity', 'error');
+          }
+        }
+
+        // Delete activity from Firestore
+        async function deleteActivity(activityId, dateStr) {
+          if (!currentFamily) return;
+
+          if (!confirm('Delete this activity?')) return;
+
+          try {
+            const weekId = getCurrentWeekId(new Date(dateStr));
+            const docRef = db.collection('families')
+              .doc(currentFamily)
+              .collection('weeklySchedule')
+              .doc(weekId)
+              .collection('days')
+              .doc(dateStr);
+
+            const doc = await docRef.get();
+            const activities = (doc.data().activities || [])
+              .filter(a => a.id !== activityId);
+
+            await docRef.update({ activities });
+
+            const div = document.getElementById(`activity-${activityId}`);
+            if (div) div.remove();
+
+            showNotification('Activity deleted', 'success');
+          } catch (error) {
+            console.error('Error deleting activity:', error);
+            showNotification('Error deleting activity', 'error');
+          }
+        }
+
+        // Reload activities for a day
+        async function reloadDayActivities(dateStr) {
+          const container = document.getElementById(`schedule-day-${dateStr}`);
+          if (container) {
+            const parentDiv = container.parentElement;
+            container.remove();
+            const newContainer = document.createElement('div');
+            newContainer.className = 'schedule-day-content';
+            newContainer.id = `schedule-day-${dateStr}`;
+            parentDiv.appendChild(newContainer);
+            await loadDayActivities(new Date(dateStr), newContainer);
+          }
+        }
+
+        // Jump to today in the schedule
+        function jumpToToday() {
+          const container = document.getElementById('scheduleWeeksContainer');
+          const todayId = `schedule-day-${new Date().toISOString().split('T')[0]}`;
+          const todayEl = document.getElementById(todayId);
+          if (todayEl && container) {
+            todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         }
     </script>
 </body>
