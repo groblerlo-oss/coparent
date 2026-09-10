@@ -3855,6 +3855,7 @@
                 event.target.classList.add('active');
                 document.getElementById(tabName).classList.add('active');
 
+                // Task 4: Call renderWeeklySchedule when switching to weeklySchedule tab
                 renderWeeklySchedule();
             } else {
                 originalSwitchTab.call(this, tabName);
@@ -4026,7 +4027,7 @@
 
         // Initialize predefined activity types
         async function initializePredefinedActivityTypes() {
-            if (!currentFamilyId) return;
+            if (!currentFamily) return;
 
             const predefinedTypes = [
                 { id: 'pickups', name: 'Pickups', icon: '🚗', category: 'essential' },
@@ -4038,7 +4039,7 @@
             ];
 
             try {
-                const activityTypesRef = db.collection('families').doc(currentFamilyId).collection('activityTypes');
+                const activityTypesRef = db.collection('families').doc(currentFamily).collection('activityTypes');
 
                 // Check which predefined types need to be initialized
                 const snapshot = await activityTypesRef.get();
@@ -4062,11 +4063,192 @@
                     }
 
                     await batch.commit();
-                    console.log(`Initialized ${missingTypes.length} predefined activity types for family: ${currentFamilyId}`);
+                    console.log(`Initialized ${missingTypes.length} predefined activity types for family: ${currentFamily}`);
                 }
             } catch (error) {
                 console.error('Error initializing activity types:', error);
                 showNotification('Failed to load activity types', 'error');
+            }
+        }
+
+        // TASK 4: Week Rendering and Activity Loading Functions
+
+        // Render weekly schedule with scrollable weeks
+        async function renderWeeklySchedule() {
+            if (!currentFamily) return;
+
+            const container = document.getElementById('scheduleWeeksContainer');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            try {
+                // Generate 4 weeks starting from this week
+                const today = new Date();
+                const weeks = [];
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - today.getDay());
+
+                for (let i = 0; i < 4; i++) {
+                    const weekStart = new Date(startOfWeek);
+                    weekStart.setDate(startOfWeek.getDate() + i * 7);
+                    weeks.push(weekStart);
+                }
+
+                // Render each week
+                for (const weekDate of weeks) {
+                    const weekElement = await createWeekElement(weekDate);
+                    container.appendChild(weekElement);
+                }
+
+                // Restore scroll position from localStorage
+                const scrollPos = localStorage.getItem('scheduleScrollPosition');
+                if (scrollPos) {
+                    container.scrollTop = parseInt(scrollPos);
+                }
+
+                // Save scroll position on scroll
+                container.addEventListener('scroll', () => {
+                    localStorage.setItem('scheduleScrollPosition', container.scrollTop);
+                });
+
+            } catch (error) {
+                console.error('Error rendering weekly schedule:', error);
+                showNotification('Error loading schedule', 'error');
+            }
+        }
+
+        // Create week element with all days and activities
+        async function createWeekElement(startDate) {
+            const weekDiv = document.createElement('div');
+            weekDiv.className = 'schedule-week';
+
+            const weekStart = new Date(startDate);
+            weekStart.setDate(startDate.getDate() - startDate.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+
+            const dateRange = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                           ' - ' +
+                           weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'schedule-week-header';
+            headerDiv.textContent = 'Week of ' + dateRange;
+            weekDiv.appendChild(headerDiv);
+
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'schedule-days-grid';
+
+            const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+            // Add day columns
+            for (let i = 0; i < 7; i++) {
+                const dayDate = new Date(weekStart);
+                dayDate.setDate(weekStart.getDate() + i);
+
+                const dayColDiv = document.createElement('div');
+                dayColDiv.className = 'schedule-day-column';
+
+                const headerDayDiv = document.createElement('div');
+                headerDayDiv.className = 'schedule-day-header';
+                headerDayDiv.innerHTML = `<strong>${dayLabels[i]}</strong><br><small>${dayDate.getDate()}</small>`;
+                dayColDiv.appendChild(headerDayDiv);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'schedule-day-content';
+                contentDiv.id = `schedule-day-${dayDate.toISOString().split('T')[0]}`;
+
+                // Load activities for this day
+                await loadDayActivities(dayDate, contentDiv);
+
+                dayColDiv.appendChild(contentDiv);
+                gridDiv.appendChild(dayColDiv);
+            }
+
+            weekDiv.appendChild(gridDiv);
+            return weekDiv;
+        }
+
+        // Load and display activities for a specific day
+        async function loadDayActivities(dayDate, contentDiv) {
+            const dateStr = dayDate.toISOString().split('T')[0];
+
+            try {
+                const docRef = db.collection('families')
+                    .doc(currentFamily)
+                    .collection('weeklySchedule')
+                    .doc(getCurrentWeekId(dayDate))
+                    .collection('days')
+                    .doc(dateStr);
+
+                const doc = await docRef.get();
+
+                if (doc.exists && doc.data().activities) {
+                    const activities = doc.data().activities
+                        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                    for (const activity of activities) {
+                        const activityEl = createActivityElement(activity, dateStr);
+                        contentDiv.appendChild(activityEl);
+                    }
+                }
+
+                // Add "+" button to create new activity
+                const addBtn = document.createElement('button');
+                addBtn.className = 'schedule-add-activity-btn';
+                addBtn.textContent = '+ Add Activity';
+                addBtn.onclick = () => startCreateActivity(dateStr, contentDiv);
+                contentDiv.appendChild(addBtn);
+
+            } catch (error) {
+                console.error(`Error loading activities for ${dateStr}:`, error);
+            }
+        }
+
+        // Get week ID (Monday date of the week in ISO format)
+        function getCurrentWeekId(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const mondayDate = new Date(d.setDate(diff));
+            return mondayDate.toISOString().split('T')[0];
+        }
+
+        // Helper function to create activity element (referenced by loadDayActivities)
+        function createActivityElement(activity, dateStr) {
+            const activityEl = document.createElement('div');
+            activityEl.className = `schedule-activity ${activity.person || 'daddy'}`;
+            activityEl.innerHTML = `
+                <span class="schedule-activity-name">${activity.name}</span>
+                <button class="schedule-activity-delete" onclick="deleteActivity('${dateStr}', '${activity.id || 0}')">×</button>
+            `;
+            return activityEl;
+        }
+
+        // Helper function for creating new activity (referenced by loadDayActivities)
+        function startCreateActivity(dateStr, contentDiv) {
+            showNotification('Activity creation form would open here', 'info');
+        }
+
+        // Helper function for deleting activity (referenced by createActivityElement)
+        async function deleteActivity(dateStr, activityId) {
+            if (!confirm('Delete this activity?')) return;
+            try {
+                const weekId = getCurrentWeekId(new Date(dateStr));
+                await db.collection('families')
+                    .doc(currentFamily)
+                    .collection('weeklySchedule')
+                    .doc(weekId)
+                    .collection('days')
+                    .doc(dateStr)
+                    .update({
+                        activities: firebase.firestore.FieldValue.arrayRemove({id: activityId})
+                    });
+                showNotification('Activity deleted', 'success');
+                renderWeeklySchedule();
+            } catch (error) {
+                showNotification('Error deleting activity: ' + error.message, 'error');
             }
         }
     </script>
