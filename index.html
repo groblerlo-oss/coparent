@@ -1691,34 +1691,34 @@
                 }
 
                 docsSnapshot.forEach(doc => {
-                    const document = doc.data();
-                    const status = getExpiryStatus(document.expiryDate);
-                    const daysLeft = calculateDaysUntilExpiry(document.expiryDate);
+                    const docData = doc.data();
+                    const status = getExpiryStatus(docData.expiryDate);
+                    const daysLeft = calculateDaysUntilExpiry(docData.expiryDate);
 
                     const cardDiv = document.createElement('div');
                     cardDiv.className = `document-card ${status.status}`;
 
-                    let dateDisplay = new Date(document.expiryDate).toLocaleDateString('en-US', {
+                    let dateDisplay = new Date(docData.expiryDate).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'
                     });
 
                     let typeIcon = '📄';
-                    if (document.type === 'Passport') typeIcon = '🛂';
-                    else if (document.type === 'Birth Certificate') typeIcon = '📋';
-                    else if (document.type === 'Medical Record') typeIcon = '🏥';
-                    else if (document.type === 'Vaccine Card') typeIcon = '💉';
-                    else if (document.type === 'ID Card') typeIcon = '🆔';
-                    else if (document.type === 'Travel Document') typeIcon = '✈️';
+                    if (docData.type === 'Passport') typeIcon = '🛂';
+                    else if (docData.type === 'Birth Certificate') typeIcon = '📋';
+                    else if (docData.type === 'Medical Record') typeIcon = '🏥';
+                    else if (docData.type === 'Vaccine Card') typeIcon = '💉';
+                    else if (docData.type === 'ID Card') typeIcon = '🆔';
+                    else if (docData.type === 'Travel Document') typeIcon = '✈️';
 
                     cardDiv.innerHTML = `
                         <div class="document-info">
-                            <h4>${typeIcon} ${document.type}</h4>
-                            <p><strong>Child:</strong> ${document.childName}</p>
-                            ${document.number ? `<p><strong>Document #:</strong> ${document.number}</p>` : ''}
+                            <h4>${typeIcon} ${docData.type}</h4>
+                            <p><strong>Child:</strong> ${docData.childName}</p>
+                            ${docData.number ? `<p><strong>Document #:</strong> ${docData.number}</p>` : ''}
                             <p><strong>Expiry:</strong> ${dateDisplay}</p>
-                            ${document.notes ? `<p><strong>Notes:</strong> ${document.notes}</p>` : ''}
+                            ${docData.notes ? `<p><strong>Notes:</strong> ${docData.notes}</p>` : ''}
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
                             <span class="expiry-status ${status.color}">${status.label}</span>
