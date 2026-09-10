@@ -2511,7 +2511,7 @@
                 loadDocuments();
             }
 
-            // Initialize activity types for this family
+            // Initialize activity types in background (non-blocking)
             initializePredefinedActivityTypes();
         }
 
@@ -3814,7 +3814,7 @@
 
         // Initialize predefined activity types
         async function initializePredefinedActivityTypes() {
-            if (!currentFamily) return;
+            if (!currentFamilyId) return;
 
             const predefinedTypes = [
                 { id: 'pickups', name: 'Pickups', icon: '🚗', category: 'essential' },
@@ -3826,26 +3826,35 @@
             ];
 
             try {
-                const activityTypesRef = db.collection('families').doc(currentFamily).collection('activityTypes');
+                const activityTypesRef = db.collection('families').doc(currentFamilyId).collection('activityTypes');
 
-                // Check if any predefined types already exist
+                // Check which predefined types need to be initialized
                 const snapshot = await activityTypesRef.get();
-                if (snapshot.docs.length === 0) {
-                    // Add predefined types
-                    for (const type of predefinedTypes) {
-                        await activityTypesRef.doc(type.id).set({
+                const existingIds = new Set(snapshot.docs.map(d => d.id));
+                const missingTypes = predefinedTypes.filter(t => !existingIds.has(t.id));
+
+                if (missingTypes.length > 0) {
+                    // Use batch write for atomicity and efficiency
+                    const batch = db.batch();
+
+                    for (const type of missingTypes) {
+                        const docRef = activityTypesRef.doc(type.id);
+                        batch.set(docRef, {
                             name: type.name,
                             icon: type.icon,
                             category: type.category,
                             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            createdBy: auth.currentUser.uid,
+                            createdBy: auth.currentUser ? auth.currentUser.uid : null,
                             isPredefined: true
                         });
                     }
-                    console.log('Predefined activity types initialized');
+
+                    await batch.commit();
+                    console.log(`Initialized ${missingTypes.length} predefined activity types for family: ${currentFamilyId}`);
                 }
             } catch (error) {
                 console.error('Error initializing activity types:', error);
+                showNotification('Failed to load activity types', 'error');
             }
         }
     </script>
