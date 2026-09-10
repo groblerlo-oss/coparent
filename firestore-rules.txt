@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is a parent in a family
+    function isParent(familyId) {
+      return exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'parent';
+    }
+
+    // Helper function to check if user is a nanny in a family
+    function isNanny(familyId) {
+      return exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'nanny';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // Families collection
+    match /families/{familyId} {
+      allow read: if request.auth.uid != null;
+      allow create: if request.auth.uid != null;
+      allow update, delete: if request.auth.uid == resource.data.createdBy;
+
+      // Members subcollection
+      match /members/{userId} {
+        allow read: if request.auth.uid != null;
+        allow write: if isParent(familyId);
+      }
+
+      // Events subcollection
+      match /events/{eventId} {
+        allow read: if request.auth.uid != null;
+        allow create: if request.auth.uid != null && (isParent(familyId) || isNanny(familyId));
+        allow update: if request.auth.uid != null && (isParent(familyId) || isNanny(familyId));
+        allow delete: if isParent(familyId) || request.auth.uid == resource.data.createdBy;
+      }
+
+      // Documents subcollection
+      match /documents/{docId} {
+        allow read: if request.auth.uid != null;
+        allow create, update: if request.auth.uid != null;
+        allow delete: if request.auth.uid == resource.data.createdBy;
+      }
+
+      // Expenses subcollection
+      match /expenses/{expenseId} {
+        allow read, create, update: if request.auth.uid != null;
+        allow delete: if request.auth.uid == resource.data.createdBy;
+      }
+
+      // Payments subcollection - immutable payment history (audit trail)
+      match /payments/{paymentId} {
+        allow read: if request.auth.uid != null;
+        allow create: if request.auth.uid != null &&
+                         request.resource.data.keys().hasAll(['from', 'to', 'amount', 'date']) &&
+                         request.resource.data.from is string &&
+                         request.resource.data.to is string &&
+                         request.resource.data.amount is number &&
+                         request.resource.data.amount > 0 &&
+                         request.resource.data.date is string;
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      // Schedule subcollection
+      match /schedule/{scheduleId} {
+        allow read: if request.auth.uid != null;
+        allow create, update: if isParent(familyId);
+        allow delete: if isParent(familyId);
+      }
+
+      // Nannies subcollection
+      match /nannies/{nannyId} {
+        allow read: if isParent(familyId) || request.auth.uid == nannyId;
+        allow create, update, delete: if isParent(familyId);
+      }
+
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read: if request.auth.uid != null;
+        allow create: if request.auth.uid != null;
+        allow update, delete: if request.auth.uid == resource.data.userId;
+      }
+    }
+
+    // Invitations collection
+    match /invitations/{invitationId} {
+      allow read: if request.auth.uid != null;
+      allow create: if request.auth.uid != null;
+      allow update, delete: if request.auth.uid == resource.data.invitedBy;
+    }
+  }
+}
