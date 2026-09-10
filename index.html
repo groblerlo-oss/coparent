@@ -3649,107 +3649,6 @@
                 `Week of ${currentWeekStart.toLocaleDateString('en-US', format)} - ${weekEnd.toLocaleDateString('en-US', format)}`;
         }
 
-        async function renderWeeklySchedule() {
-            if (!currentFamily) return;
-
-            const gridDiv = document.getElementById('weeklyScheduleGrid');
-            gridDiv.innerHTML = '<div class="loading">Loading schedule...</div>';
-
-            try {
-                // Load schedule document
-                const scheduleDoc = await db.collection('families').doc(currentFamily)
-                    .collection('schedule')
-                    .doc('default')
-                    .get();
-
-                let weeklyPattern = [];
-                if (scheduleDoc.exists) {
-                    weeklyPattern = scheduleDoc.data().weeklyPattern || [];
-                }
-
-                // Load events for the week
-                const weekEnd = new Date(currentWeekStart);
-                weekEnd.setDate(weekEnd.getDate() + 6);
-                weekEnd.setHours(23, 59, 59, 999);
-
-                const eventsSnapshot = await db.collection('families').doc(currentFamily)
-                    .collection('events')
-                    .where('date', '>=', currentWeekStart.toISOString().split('T')[0])
-                    .where('date', '<=', weekEnd.toISOString().split('T')[0])
-                    .get();
-
-                const events = eventsSnapshot.docs.map(doc => doc.data());
-
-                // Build grid HTML
-                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                const timeSlots = ['Morning (6am-12pm)', 'Afternoon (12pm-6pm)', 'Evening (6pm+)'];
-
-                let html = '<div class="schedule-grid">';
-
-                // Header row with days
-                html += '<div class="schedule-header" style="background: white; border: none;"></div>';
-                for (let i = 0; i < 7; i++) {
-                    const dayDate = new Date(currentWeekStart);
-                    dayDate.setDate(dayDate.getDate() + i);
-                    const dayName = days[i];
-                    const dateStr = dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    html += `<div class="schedule-header">${dayName}<br>${dateStr}</div>`;
-                }
-
-                // Time slot rows
-                timeSlots.forEach((slot, slotIndex) => {
-                    html += `<div class="schedule-time">${slot}</div>`;
-
-                    for (let i = 0; i < 7; i++) {
-                        const dayDate = new Date(currentWeekStart);
-                        dayDate.setDate(dayDate.getDate() + i);
-                        const dayName = days[i];
-                        const dateStr = dayDate.toISOString().split('T')[0];
-
-                        html += '<div class="schedule-cell">';
-
-                        // Add custody block
-                        const custody = weeklyPattern.find(p => p.day === dayName);
-                        if (custody) {
-                            let custodyClass = `custody-${custody.parent.toLowerCase()}`;
-                            if (!custodyClass.includes('louis') && !custodyClass.includes('cecilia')) {
-                                custodyClass = 'custody-parent';
-                            }
-                            html += `<div class="custody-block ${custodyClass}">${custody.parent}</div>`;
-                        }
-
-                        // Add events for this day
-                        const dayEvents = events.filter(e => e.date === dateStr);
-                        dayEvents.forEach(event => {
-                            let eventClass = 'activity';
-                            if (event.title && event.title.toLowerCase().includes('appointment')) {
-                                eventClass = 'appointment';
-                            }
-                            html += `<div class="event-item ${eventClass}" title="${event.title}">
-                                ${event.title.substring(0, 15)}${event.title.length > 15 ? '...' : ''}
-                            </div>`;
-                        });
-
-                        html += '</div>';
-                    }
-                });
-
-                html += '</div>';
-
-                gridDiv.innerHTML = html;
-                updateWeekDisplay();
-
-                // Show nanny note if user is helper
-                if (userRole === 'helper') {
-                    document.getElementById('scheduleNannyNote').style.display = 'block';
-                } else {
-                    document.getElementById('scheduleNannyNote').style.display = 'none';
-                }
-            } catch (error) {
-                gridDiv.innerHTML = `<p style="color: #dc3545;">Error loading schedule: ${error.message}</p>`;
-            }
-        }
-
         // TASK 8: Schedule Setup & Configuration
 
         async function showScheduleSetupModal() {
@@ -4073,6 +3972,14 @@
 
         // TASK 4: Week Rendering and Activity Loading Functions
 
+        // Save scroll position to localStorage
+        function saveScheduleScroll() {
+            const container = document.getElementById('scheduleWeeksContainer');
+            if (container) {
+                localStorage.setItem('scheduleScrollPosition', container.scrollTop);
+            }
+        }
+
         // Render weekly schedule with scrollable weeks
         async function renderWeeklySchedule() {
             if (!currentFamily) return;
@@ -4107,10 +4014,11 @@
                     container.scrollTop = parseInt(scrollPos);
                 }
 
-                // Save scroll position on scroll
-                container.addEventListener('scroll', () => {
-                    localStorage.setItem('scheduleScrollPosition', container.scrollTop);
-                });
+                // Remove old listener if it exists
+                container.removeEventListener('scroll', saveScheduleScroll);
+
+                // Add listener for saving scroll position
+                container.addEventListener('scroll', saveScheduleScroll);
 
             } catch (error) {
                 console.error('Error rendering weekly schedule:', error);
@@ -4211,7 +4119,8 @@
             const d = new Date(date);
             const day = d.getDay();
             const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-            const mondayDate = new Date(d.setDate(diff));
+            const mondayDate = new Date(d);
+            mondayDate.setDate(diff);
             return mondayDate.toISOString().split('T')[0];
         }
 
