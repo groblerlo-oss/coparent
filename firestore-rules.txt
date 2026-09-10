@@ -39,9 +39,9 @@ service cloud.firestore {
 
       // Documents subcollection
       match /documents/{docId} {
-        allow read: if request.auth.uid != null;
-        allow create, update: if request.auth.uid != null;
-        allow delete: if request.auth.uid == resource.data.createdBy;
+        allow read: if isParent(familyId) || isNanny(familyId);
+        allow create, update: if isParent(familyId);
+        allow delete: if isParent(familyId);
       }
 
       // Expenses subcollection

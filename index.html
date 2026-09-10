@@ -2066,12 +2066,40 @@
                         eventDiv.classList.add('archived');
                     }
 
-                    const pastBadge = event.isArchived ? ' <span class="past-badge">📋 Past</span>' : '';
-                    eventDiv.innerHTML = `
-                        <h4 style="cursor: pointer; color: #667eea;" onclick="showEventDetails('${event.id}', ${JSON.stringify(event).replace(/'/g, '&apos;')})">${event.title}${pastBadge}</h4>
-                        <p>📅 ${event.date} ${event.time ? '⏰ ' + event.time : ''}</p>
-                        ${event.notes ? `<p>${event.notes}</p>` : ''}
-                    `;
+                    // Create title link safely
+                    const titleLink = document.createElement('h4');
+                    titleLink.style.cursor = 'pointer';
+                    titleLink.style.color = '#667eea';
+                    titleLink.textContent = event.title;
+                    titleLink.onclick = (e) => {
+                        e.stopPropagation();
+                        showEventDetails(event.id, event);
+                    };
+
+                    // Add past badge if needed
+                    if (event.isArchived) {
+                        const badgeSpan = document.createElement('span');
+                        badgeSpan.className = 'past-badge';
+                        badgeSpan.textContent = '📋 Past';
+                        titleLink.appendChild(badgeSpan);
+                    }
+
+                    // Create date/time paragraph
+                    const dateP = document.createElement('p');
+                    dateP.textContent = '📅 ' + event.date + (event.time ? ' ⏰ ' + event.time : '');
+
+                    // Create notes paragraph if present
+                    const notesP = document.createElement('p');
+                    if (event.notes) {
+                        notesP.textContent = event.notes;
+                    }
+
+                    eventDiv.appendChild(titleLink);
+                    eventDiv.appendChild(dateP);
+                    if (event.notes) {
+                        eventDiv.appendChild(notesP);
+                    }
+
                     eventDiv.addEventListener('click', () => showEventDetails(event.id, event));
                     eventsDiv.appendChild(eventDiv);
                 });
@@ -2138,8 +2166,15 @@
             const newTime = prompt('Enter new time (HH:MM):', window.currentEventDetails.time || '');
             if (newTime === null) return; // User cancelled
 
-            if (!newTime.match(/^\d{2}:\d{2}$/)) {
-                showNotification('Please enter time in HH:MM format', 'error');
+            // Validate format AND value ranges
+            const timeMatch = newTime.match(/^(\d{2}):(\d{2})$/);
+            if (!timeMatch) {
+                showNotification('Time must be in HH:MM format', 'error');
+                return;
+            }
+            const [, hour, minute] = timeMatch;
+            if (parseInt(hour) > 23 || parseInt(minute) > 59) {
+                showNotification('Invalid time (hours must be 0-23, minutes 0-59)', 'error');
                 return;
             }
 
@@ -2790,8 +2825,20 @@
                     dateCell.style.cssText = 'padding: 12px 10px;';
 
                     const descCell = row.insertCell();
-                    descCell.innerHTML = `<strong>${expense.description}</strong>${expense.childName ? `<br><small style="color: #666;">Linked to: ${expense.childName}</small>` : ''}`;
                     descCell.style.cssText = 'padding: 12px 10px;';
+
+                    const descText = document.createElement('div');
+                    descText.textContent = expense.description;
+                    descText.style.fontWeight = '600';
+                    descCell.appendChild(descText);
+
+                    if (expense.childName) {
+                        const childLink = document.createElement('small');
+                        childLink.textContent = 'Linked to: ' + expense.childName;
+                        childLink.style.color = '#666';
+                        childLink.style.display = 'block';
+                        descCell.appendChild(childLink);
+                    }
 
                     const amountCell = row.insertCell();
                     amountCell.textContent = `R ${expense.amount.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -3317,9 +3364,14 @@
 
         // TASK 8: Schedule Setup & Configuration
 
-        function showScheduleSetupModal() {
+        async function showScheduleSetupModal() {
             const builderDiv = document.getElementById('scheduleBuilder');
             const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+            // Load family data to get parents list
+            const familyDoc = await db.collection('families').doc(currentFamily).get();
+            const parents = familyDoc.data().parents || [];
+
             let html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">';
 
             days.forEach(day => {
@@ -3328,8 +3380,14 @@
                         <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">${day}</label>
                         <select id="schedule_${day}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.95em;">
                             <option value="">Select parent...</option>
-                            <option value="Louis">Louis</option>
-                            <option value="Cecilia">Cecilia</option>
+                `;
+
+                // Add options from family parents array
+                parents.forEach(parent => {
+                    html += `<option value="${parent.name}">${parent.name}</option>`;
+                });
+
+                html += `
                         </select>
                     </div>
                 `;
@@ -3551,12 +3609,26 @@
                 return;
             }
 
-            list.innerHTML = notifications.map((n, idx) => `
-                <div style="padding: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; hover: background: #f5f5f5;" onclick="dismissNotification(${idx})">
-                    <div style="font-weight: 600; margin-bottom: 3px;">${n.message}</div>
-                    <div style="font-size: 0.85em; color: #999;">${n.timestamp.toLocaleTimeString()}</div>
-                </div>
-            `).join('');
+            list.innerHTML = '';
+            notifications.forEach((n, idx) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'padding: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer;';
+                div.onmouseover = () => div.style.background = '#f5f5f5';
+                div.onmouseout = () => div.style.background = '';
+
+                const msgDiv = document.createElement('div');
+                msgDiv.textContent = n.message;
+                msgDiv.style.cssText = 'font-weight: 600; margin-bottom: 3px;';
+
+                const timeDiv = document.createElement('div');
+                timeDiv.textContent = n.timestamp.toLocaleTimeString();
+                timeDiv.style.cssText = 'font-size: 0.85em; color: #999;';
+
+                div.appendChild(msgDiv);
+                div.appendChild(timeDiv);
+                div.onclick = () => dismissNotification(idx);
+                list.appendChild(div);
+            });
         }
 
         function dismissNotification(idx) {
