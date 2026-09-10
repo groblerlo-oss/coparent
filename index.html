@@ -2510,6 +2510,9 @@
                 loadFamilyMembers();
                 loadDocuments();
             }
+
+            // Initialize activity types for this family
+            initializePredefinedActivityTypes();
         }
 
         async function logout() {
@@ -3807,6 +3810,43 @@
         function dismissNotification(idx) {
             notifications.splice(idx, 1);
             updateNotificationDisplay();
+        }
+
+        // Initialize predefined activity types
+        async function initializePredefinedActivityTypes() {
+            if (!currentFamily) return;
+
+            const predefinedTypes = [
+                { id: 'pickups', name: 'Pickups', icon: '🚗', category: 'essential' },
+                { id: 'homework', name: 'Homework', icon: '📚', category: 'essential' },
+                { id: 'meals', name: 'Meals', icon: '🍽️', category: 'essential' },
+                { id: 'home-activities', name: 'Home activities', icon: '🏠', category: 'play' },
+                { id: 'activities', name: 'Activities', icon: '🎵', category: 'play' },
+                { id: 'bedtime', name: 'Bedtime routines', icon: '💤', category: 'essential' }
+            ];
+
+            try {
+                const activityTypesRef = db.collection('families').doc(currentFamily).collection('activityTypes');
+
+                // Check if any predefined types already exist
+                const snapshot = await activityTypesRef.get();
+                if (snapshot.docs.length === 0) {
+                    // Add predefined types
+                    for (const type of predefinedTypes) {
+                        await activityTypesRef.doc(type.id).set({
+                            name: type.name,
+                            icon: type.icon,
+                            category: type.category,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            createdBy: auth.currentUser.uid,
+                            isPredefined: true
+                        });
+                    }
+                    console.log('Predefined activity types initialized');
+                }
+            } catch (error) {
+                console.error('Error initializing activity types:', error);
+            }
         }
     </script>
 </body>
