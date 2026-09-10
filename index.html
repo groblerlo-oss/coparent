@@ -341,6 +341,13 @@
             border-radius: 10px;
             margin-bottom: 10px;
             border-left: 5px solid #28a745;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .calendar-event:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
         }
 
         .calendar-event h4 {
@@ -351,6 +358,143 @@
         .calendar-event p {
             color: #666;
             font-size: 0.9em;
+        }
+
+        .calendar-event.archived {
+            background: rgba(0,0,0,0.06);
+            opacity: 0.6;
+            border-left-color: #999;
+        }
+
+        .calendar-event.archived h4 {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .past-badge {
+            display: inline-block;
+            background: #999;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            border: 2px solid #ddd;
+            background: white;
+            color: #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .filter-btn:hover {
+            border-color: #667eea;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            overflow-y: auto;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            margin: 20px auto;
+        }
+
+        .edit-history {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .edit-entry {
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .edit-entry:last-child {
+            border-bottom: none;
+        }
+
+        .edit-entry strong {
+            color: #333;
+        }
+
+        .strikethrough {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .highlight-new {
+            font-weight: bold;
+            color: #28a745;
+        }
+
+        .recurrence-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .day-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .day-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .day-checkbox input {
+            cursor: pointer;
+        }
+
+        .day-checkbox label {
+            cursor: pointer;
+            user-select: none;
         }
 
         .loading {
@@ -729,6 +873,14 @@
             <div id="calendar" class="tab-content active">
                 <h2>Family Calendar</h2>
                 <button class="btn btn-success" onclick="showAddEventModal()" style="max-width: 300px; margin: 20px 0;">+ Add Event</button>
+
+                <!-- Filter Buttons -->
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="setCalendarFilter('active')">Active Only</button>
+                    <button class="filter-btn" onclick="setCalendarFilter('all')">Show All</button>
+                    <button class="filter-btn" onclick="setCalendarFilter('past')">Past Only</button>
+                </div>
+
                 <div id="calendarEvents"></div>
             </div>
 
@@ -901,9 +1053,9 @@
         </div>
     </div>
 
-    <!-- Add Event Modal (simple version) -->
-    <div id="addEventModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 999;">
-        <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%;">
+    <!-- Add Event Modal (with recurrence) -->
+    <div id="addEventModal" class="modal hidden">
+        <div class="modal-content">
             <h3 style="margin-bottom: 20px;">Add Calendar Event</h3>
             <div class="form-group">
                 <label>Event Title</label>
@@ -921,8 +1073,75 @@
                 <label>Notes</label>
                 <textarea id="eventNotes" rows="3" placeholder="Additional details..."></textarea>
             </div>
+
+            <!-- Recurrence Fields -->
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="eventRecurring" onchange="toggleRecurrenceFields()">
+                    Recurring? (Weekly)
+                </label>
+            </div>
+
+            <div id="recurrenceFields" class="recurrence-section hidden">
+                <label>Repeat on these days:</label>
+                <div class="day-checkboxes">
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="dayMonday" value="Monday"> <label for="dayMonday">Monday</label>
+                    </div>
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="dayTuesday" value="Tuesday"> <label for="dayTuesday">Tuesday</label>
+                    </div>
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="dayWednesday" value="Wednesday"> <label for="dayWednesday">Wednesday</label>
+                    </div>
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="dayThursday" value="Thursday"> <label for="dayThursday">Thursday</label>
+                    </div>
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="dayFriday" value="Friday"> <label for="dayFriday">Friday</label>
+                    </div>
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="daySaturday" value="Saturday"> <label for="daySaturday">Saturday</label>
+                    </div>
+                    <div class="day-checkbox">
+                        <input type="checkbox" id="daySunday" value="Sunday"> <label for="daySunday">Sunday</label>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>End Date (optional)</label>
+                    <input type="date" id="eventRecurrenceEndDate">
+                </div>
+            </div>
+
             <button class="btn" onclick="addEvent()">Add Event</button>
             <button class="btn btn-secondary" onclick="closeAddEventModal()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Event Details Modal -->
+    <div id="eventDetailsModal" class="modal hidden">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 id="detailsTitle">Event Details</h3>
+                <button onclick="closeEventDetailsModal()" style="background: none; border: none; font-size: 1.5em; cursor: pointer;">&times;</button>
+            </div>
+
+            <div id="eventDetailsContent">
+                <!-- Details will be populated here -->
+            </div>
+
+            <!-- Edit History Section -->
+            <div id="editHistorySection" style="display: none;">
+                <h4 style="margin-top: 20px; margin-bottom: 10px;">Edit History</h4>
+                <div id="editHistoryContent" class="edit-history">
+                    <!-- History entries will be populated here -->
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button class="btn" id="editTimeBtn" onclick="editEventTime()" style="display: none;">Edit Time</button>
+                <button class="btn btn-secondary" onclick="closeEventDetailsModal()">Close</button>
+            </div>
         </div>
     </div>
 
@@ -1440,6 +1659,18 @@
             document.getElementById(tabName).classList.add('active');
 
             // Load data when switching tabs
+            if (tabName === 'calendar') {
+                // Initialize calendar filter buttons if needed
+                const filterType = localStorage.getItem('calendarFilter') || 'active';
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    if (btn.textContent.toLowerCase().includes(filterType === 'active' ? 'active' : filterType === 'all' ? 'all' : 'past')) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
             if (tabName === 'documents' && userRole === 'parent') {
                 loadDocuments();
             }
@@ -1525,6 +1756,91 @@
         }
 
         // Calendar Functions
+        function expandRecurringEvents(events) {
+            // Expand recurring events into individual instances
+            const expandedEvents = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const ninetyDaysFromNow = new Date(today);
+            ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+
+            events.forEach(event => {
+                if (event.recurrence && event.recurrence.enabled && event.recurrence.daysOfWeek && event.recurrence.daysOfWeek.length > 0) {
+                    // This is a recurring event - expand it
+                    const baseDate = new Date(event.date + 'T00:00:00');
+                    const endDate = event.recurrence.endDate ? new Date(event.recurrence.endDate + 'T23:59:59') : ninetyDaysFromNow;
+                    let currentDate = new Date(baseDate);
+
+                    while (currentDate <= endDate && currentDate <= ninetyDaysFromNow) {
+                        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+                        if (event.recurrence.daysOfWeek.includes(dayName)) {
+                            const expandedEvent = {
+                                ...event,
+                                date: currentDate.toISOString().split('T')[0],
+                                expandedFromId: event.id || 'recurring'
+                            };
+                            // Recalculate archive date for expanded instance
+                            const archiveDate = new Date(currentDate);
+                            archiveDate.setDate(archiveDate.getDate() + 5);
+                            expandedEvent.archivedDate = archiveDate.toISOString().split('T')[0];
+                            expandedEvents.push(expandedEvent);
+                        }
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                } else {
+                    // Non-recurring event
+                    expandedEvents.push(event);
+                }
+            });
+
+            return expandedEvents;
+        }
+
+        function calculateArchiveStatus(events) {
+            // Calculate isArchived for each event based on current date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            return events.map(event => {
+                if (event.archivedDate) {
+                    const archivedDate = new Date(event.archivedDate + 'T00:00:00');
+                    event.isArchived = today > archivedDate;
+                }
+                return event;
+            });
+        }
+
+        function filterCalendarEvents(events, filterType) {
+            // Filter events based on filter type
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            return events.filter(event => {
+                if (filterType === 'active') {
+                    return !event.isArchived;
+                } else if (filterType === 'past') {
+                    return event.isArchived;
+                } else {
+                    // 'all'
+                    return true;
+                }
+            });
+        }
+
+        function setCalendarFilter(filterType) {
+            // Save filter state to localStorage
+            localStorage.setItem('calendarFilter', filterType);
+
+            // Update UI
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Reload events with new filter
+            loadCalendarEvents();
+        }
+
         async function loadCalendarEvents() {
             const eventsDiv = document.getElementById('calendarEvents');
             eventsDiv.innerHTML = '<div class="loading">Loading events...</div>';
@@ -1533,7 +1849,7 @@
                 const eventsSnapshot = await db.collection('families').doc(currentFamily)
                     .collection('events')
                     .orderBy('date', 'asc')
-                    .limit(20)
+                    .limit(100)
                     .get();
 
                 eventsDiv.innerHTML = '';
@@ -1543,19 +1859,147 @@
                     return;
                 }
 
-                eventsSnapshot.forEach(doc => {
-                    const event = doc.data();
+                // Convert snapshot to array with IDs
+                let events = eventsSnapshot.docs.map(doc => ({
+                    ...doc.data(),
+                    id: doc.id
+                }));
+
+                // Expand recurring events
+                events = expandRecurringEvents(events);
+
+                // Calculate archive status for all events
+                events = calculateArchiveStatus(events);
+
+                // Sort by date
+                events.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                // Get filter state from localStorage (default to 'active')
+                const filterType = localStorage.getItem('calendarFilter') || 'active';
+
+                // Apply filter
+                events = filterCalendarEvents(events, filterType);
+
+                if (events.length === 0) {
+                    eventsDiv.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">No events to display.</p>';
+                    return;
+                }
+
+                events.forEach(event => {
                     const eventDiv = document.createElement('div');
                     eventDiv.className = 'calendar-event';
+                    if (event.isArchived) {
+                        eventDiv.classList.add('archived');
+                    }
+
+                    const pastBadge = event.isArchived ? ' <span class="past-badge">📋 Past</span>' : '';
                     eventDiv.innerHTML = `
-                        <h4>${event.title}</h4>
+                        <h4 style="cursor: pointer; color: #667eea;" onclick="showEventDetails('${event.id}', ${JSON.stringify(event).replace(/'/g, '&apos;')})">${event.title}${pastBadge}</h4>
                         <p>📅 ${event.date} ${event.time ? '⏰ ' + event.time : ''}</p>
                         ${event.notes ? `<p>${event.notes}</p>` : ''}
                     `;
+                    eventDiv.addEventListener('click', () => showEventDetails(event.id, event));
                     eventsDiv.appendChild(eventDiv);
                 });
             } catch (error) {
                 eventsDiv.innerHTML = `<p style="color: #dc3545;">Error loading events: ${error.message}</p>`;
+            }
+        }
+
+        function showEventDetails(eventId, eventData) {
+            const modal = document.getElementById('eventDetailsModal');
+            const detailsContent = document.getElementById('eventDetailsContent');
+            const editHistorySection = document.getElementById('editHistorySection');
+            const editHistoryContent = document.getElementById('editHistoryContent');
+            const editTimeBtn = document.getElementById('editTimeBtn');
+
+            // Store event data globally for editing
+            window.currentEventDetails = {
+                id: eventId,
+                ...eventData
+            };
+
+            // Display event details
+            detailsContent.innerHTML = `
+                <div>
+                    <p><strong>Title:</strong> ${eventData.title}</p>
+                    <p><strong>Date:</strong> ${eventData.date}</p>
+                    <p><strong>Time:</strong> ${eventData.time || 'Not specified'}</p>
+                    <p><strong>Category:</strong> ${eventData.category || 'General'}</p>
+                    ${eventData.notes ? `<p><strong>Notes:</strong> ${eventData.notes}</p>` : ''}
+                    ${eventData.isArchived ? `<p style="color: #999;"><em>📋 This event is archived</em></p>` : ''}
+                </div>
+            `;
+
+            // Show edit history if available
+            if (eventData.editHistory && eventData.editHistory.length > 0) {
+                editHistorySection.style.display = 'block';
+                editHistoryContent.innerHTML = eventData.editHistory.map(entry => {
+                    const changeDate = new Date(entry.changedAt.toDate()).toLocaleDateString();
+                    return `
+                        <div class="edit-entry">
+                            <strong>${entry.changedByName}</strong> changed <strong>${entry.field}</strong>
+                            from <span class="strikethrough">${entry.oldValue}</span>
+                            to <span class="highlight-new">${entry.newValue}</span>
+                            on <em>${changeDate}</em>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                editHistorySection.style.display = 'none';
+            }
+
+            // Show edit button if user role is parent
+            editTimeBtn.style.display = userRole === 'parent' ? 'block' : 'none';
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeEventDetailsModal() {
+            document.getElementById('eventDetailsModal').classList.add('hidden');
+            window.currentEventDetails = null;
+        }
+
+        async function editEventTime() {
+            const newTime = prompt('Enter new time (HH:MM):', window.currentEventDetails.time || '');
+            if (newTime === null) return; // User cancelled
+
+            if (!newTime.match(/^\d{2}:\d{2}$/)) {
+                showNotification('Please enter time in HH:MM format', 'error');
+                return;
+            }
+
+            try {
+                const oldTime = window.currentEventDetails.time || 'Not specified';
+                const eventRef = db.collection('families').doc(currentFamily)
+                    .collection('events')
+                    .doc(window.currentEventDetails.id);
+
+                // Get current edit history
+                let editHistory = window.currentEventDetails.editHistory || [];
+
+                // Add new edit entry
+                const editEntry = {
+                    changedBy: currentUser.uid,
+                    changedByName: currentUser.displayName || 'Unknown',
+                    changedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    field: 'time',
+                    oldValue: oldTime,
+                    newValue: newTime
+                };
+                editHistory.push(editEntry);
+
+                // Update event
+                await eventRef.update({
+                    time: newTime,
+                    editHistory: editHistory
+                });
+
+                showNotification('Event time updated successfully!', 'success');
+                closeEventDetailsModal();
+                loadCalendarEvents();
+            } catch (error) {
+                showNotification(error.message, 'error');
             }
         }
 
@@ -1568,6 +2012,40 @@
             document.getElementById('addEventModal').classList.add('hidden');
             document.getElementById('eventTitle').value = '';
             document.getElementById('eventNotes').value = '';
+            clearRecurrenceFields();
+        }
+
+        // Helper functions for recurrence
+        function toggleRecurrenceFields() {
+            const isRecurring = document.getElementById('eventRecurring').checked;
+            const recurrenceSection = document.getElementById('recurrenceFields');
+            if (isRecurring) {
+                recurrenceSection.classList.remove('hidden');
+            } else {
+                recurrenceSection.classList.add('hidden');
+            }
+        }
+
+        function getSelectedRecurrenceDays() {
+            const days = [];
+            const dayIds = ['dayMonday', 'dayTuesday', 'dayWednesday', 'dayThursday', 'dayFriday', 'daySaturday', 'daySunday'];
+            dayIds.forEach(id => {
+                if (document.getElementById(id).checked) {
+                    const dayName = document.getElementById(id).value;
+                    days.push(dayName);
+                }
+            });
+            return days;
+        }
+
+        function clearRecurrenceFields() {
+            document.getElementById('eventRecurring').checked = false;
+            document.getElementById('recurrenceFields').classList.add('hidden');
+            document.getElementById('eventRecurrenceEndDate').value = '';
+            const dayIds = ['dayMonday', 'dayTuesday', 'dayWednesday', 'dayThursday', 'dayFriday', 'daySaturday', 'daySunday'];
+            dayIds.forEach(id => {
+                document.getElementById(id).checked = false;
+            });
         }
 
         async function addEvent() {
@@ -1575,21 +2053,61 @@
             const date = document.getElementById('eventDate').value;
             const time = document.getElementById('eventTime').value;
             const notes = document.getElementById('eventNotes').value.trim();
+            const isRecurring = document.getElementById('eventRecurring').checked;
 
             if (!title || !date) {
                 showNotification('Please fill in required fields', 'error');
                 return;
             }
 
+            // Validate recurrence
+            if (isRecurring) {
+                const recurrenceDays = getSelectedRecurrenceDays();
+                if (recurrenceDays.length === 0) {
+                    showNotification('Please select at least one day for recurring events', 'error');
+                    return;
+                }
+            }
+
             try {
-                await db.collection('families').doc(currentFamily).collection('events').add({
+                // Calculate archive date (event date + 5 days)
+                const eventDate = new Date(date);
+                const archiveDate = new Date(eventDate);
+                archiveDate.setDate(archiveDate.getDate() + 5);
+
+                const eventData = {
                     title: title,
                     date: date,
                     time: time || '',
                     notes: notes,
                     createdBy: currentUser.uid,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                    createdByName: currentUser.displayName || 'Unknown',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    isArchived: false,
+                    archivedDate: archiveDate.toISOString().split('T')[0],
+                    editHistory: []
+                };
+
+                // Add recurrence data if applicable
+                if (isRecurring) {
+                    const recurrenceDays = getSelectedRecurrenceDays();
+                    const recurrenceEndDate = document.getElementById('eventRecurrenceEndDate').value;
+                    eventData.recurrence = {
+                        enabled: true,
+                        pattern: 'weekly',
+                        daysOfWeek: recurrenceDays,
+                        endDate: recurrenceEndDate || null
+                    };
+                } else {
+                    eventData.recurrence = {
+                        enabled: false,
+                        pattern: null,
+                        daysOfWeek: [],
+                        endDate: null
+                    };
+                }
+
+                await db.collection('families').doc(currentFamily).collection('events').add(eventData);
 
                 showNotification('Event added successfully!', 'success');
                 closeAddEventModal();
