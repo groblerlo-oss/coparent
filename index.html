@@ -880,6 +880,194 @@
             color: white;
             border-left-color: #5a6268;
         }
+
+        /* Detailed Activity Schedule Styles */
+        .schedule-weeks-container {
+          height: 600px;
+          overflow-y: auto;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          background: white;
+        }
+
+        .schedule-week {
+          margin: 20px;
+          border: 1px solid #eee;
+          border-radius: 8px;
+          background: #fafafa;
+          overflow-x: auto;
+        }
+
+        .schedule-week-header {
+          background: #667eea;
+          color: white;
+          padding: 12px 15px;
+          font-weight: 600;
+          font-size: 1.05em;
+        }
+
+        .schedule-days-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 1px;
+          background: #ddd;
+          min-width: 100%;
+        }
+
+        .schedule-day-column {
+          min-width: 140px;
+        }
+
+        .schedule-day-header {
+          background: #f5f5f5;
+          padding: 10px;
+          text-align: center;
+          font-weight: 600;
+          color: #666;
+          font-size: 0.9em;
+          border-bottom: 2px solid #ddd;
+        }
+
+        .schedule-day-content {
+          background: white;
+          padding: 10px;
+          min-height: 200px;
+          position: relative;
+        }
+
+        .schedule-activity {
+          background: white;
+          border-left: 4px solid #667eea;
+          padding: 8px 10px;
+          margin-bottom: 6px;
+          border-radius: 4px;
+          font-size: 0.9em;
+          cursor: move;
+          transition: all 0.2s;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          position: relative;
+        }
+
+        .schedule-activity:hover {
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          background: #f9f9f9;
+        }
+
+        .schedule-activity.daddy {
+          border-left-color: #667eea;
+        }
+
+        .schedule-activity.mommy {
+          border-left-color: #e91e63;
+        }
+
+        .schedule-activity.granny {
+          border-left-color: #ffc107;
+        }
+
+        .schedule-activity.nanny {
+          border-left-color: #4caf50;
+        }
+
+        .schedule-activity-name {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .schedule-activity-delete {
+          background: none;
+          border: none;
+          color: #dc3545;
+          cursor: pointer;
+          padding: 0 5px;
+          font-size: 1.2em;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+
+        .schedule-activity:hover .schedule-activity-delete {
+          opacity: 1;
+        }
+
+        .schedule-activity-delete:hover {
+          transform: scale(1.2);
+        }
+
+        .schedule-add-activity-btn {
+          background: #f0f0f0;
+          border: 2px dashed #ccc;
+          padding: 8px 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          color: #666;
+          font-size: 0.9em;
+          text-align: center;
+          transition: all 0.2s;
+          width: 100%;
+          margin-top: 8px;
+        }
+
+        .schedule-add-activity-btn:hover {
+          background: #e8e8e8;
+          border-color: #999;
+        }
+
+        .schedule-inline-edit {
+          display: flex;
+          gap: 5px;
+          align-items: center;
+        }
+
+        .schedule-inline-edit input {
+          flex: 1;
+          padding: 5px 8px;
+          border: 1px solid #667eea;
+          border-radius: 3px;
+          font-size: 0.9em;
+        }
+
+        .schedule-inline-edit select {
+          padding: 5px 8px;
+          border: 1px solid #667eea;
+          border-radius: 3px;
+          font-size: 0.9em;
+        }
+
+        .schedule-inline-edit button {
+          padding: 5px 10px;
+          background: #28a745;
+          color: white;
+          border: none;
+          border-radius: 3px;
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        .schedule-inline-edit button:hover {
+          background: #218838;
+        }
+
+        .schedule-jump-to-today {
+          position: sticky;
+          top: 10px;
+          padding: 10px 20px;
+          background: #667eea;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: 600;
+          z-index: 100;
+          margin: 10px;
+        }
+
+        .schedule-jump-to-today:hover {
+          background: #5568d3;
+        }
     </style>
 </head>
 <body>
@@ -1104,23 +1292,16 @@
 
             <!-- Weekly Schedule Tab (Parents Only) -->
             <div id="weeklySchedule" class="tab-content parent-only">
-                <h2>Weekly Schedule</h2>
+                <h2>Weekly Activity Schedule</h2>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button onclick="previousWeek()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">← Prev Week</button>
-                        <span id="weekDisplay" style="font-size: 1.1em; font-weight: 600; min-width: 250px;">Week of Sept 8, 2026</span>
-                        <button onclick="nextWeek()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Next Week →</button>
-                    </div>
-                    <button onclick="showScheduleSetupModal()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Set Schedule</button>
-                </div>
+                <button class="schedule-jump-to-today" onclick="jumpToToday()">Jump to Today</button>
 
-                <div id="weeklyScheduleGrid" style="overflow-x: auto; margin-bottom: 20px;">
-                    <!-- Grid populated by JavaScript -->
+                <div class="schedule-weeks-container" id="scheduleWeeksContainer">
+                    <!-- Weeks populated by JavaScript -->
                 </div>
 
                 <div id="scheduleNannyNote" style="display: none; background: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 15px 0; border-radius: 4px;">
-                    <p><strong>👶 Nanny Note:</strong> This schedule shows custody patterns and activities. You can add activities, but cannot modify the custody schedule.</p>
+                    <p><strong>👶 Nanny Note:</strong> You can view activities and add new ones, but cannot edit or delete existing activities.</p>
                 </div>
             </div>
 
