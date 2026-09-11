@@ -1399,6 +1399,7 @@
                 <h2>Weekly Activity Schedule</h2>
 
                 <button class="schedule-jump-to-today" onclick="jumpToToday()">Jump to Today</button>
+                <button class="schedule-jump-to-today" onclick="preloadWeek1Activities()" style="margin-left: 10px; background: #4CAF50;">Preload Week 1</button>
 
                 <div class="schedule-weeks-container" id="scheduleWeeksContainer">
                     <!-- Weeks populated by JavaScript -->
@@ -4382,6 +4383,67 @@
           }
 
           return div;
+        }
+
+        // Preload Week 1 activities from planning sheet
+        async function preloadWeek1Activities() {
+            const activities = {
+                '2026-09-07': [ // Monday
+                    { name: 'Daddy drop-off', person: 'Daddy' },
+                    { name: 'Mommy drop-off', person: 'Mommy' }
+                ],
+                '2026-09-08': [ // Tuesday
+                    { name: 'Mommy drop-off', person: 'Mommy' },
+                    { name: 'Granny/Oppa pickup Swimming', person: 'Granny' }
+                ],
+                '2026-09-09': [ // Wednesday
+                    { name: 'Mommy drop-off', person: 'Mommy' },
+                    { name: 'Daddy homework', person: 'Daddy' }
+                ],
+                '2026-09-10': [ // Thursday
+                    { name: 'Daddy drop-off', person: 'Daddy' },
+                    { name: 'Granny/Oppa or Mommy pickup Swimming', person: 'Granny' },
+                    { name: 'Mommy dinner', person: 'Mommy' }
+                ],
+                '2026-09-11': [ // Friday
+                    { name: 'Mommy drop-off', person: 'Mommy' },
+                    { name: 'Daddy pickup Swimming', person: 'Daddy' },
+                    { name: 'Daddy sleepover', person: 'Daddy' }
+                ],
+                '2026-09-12': [ // Saturday
+                    { name: 'Mommy', person: 'Mommy' },
+                    { name: 'Daddy sleepover', person: 'Daddy' }
+                ]
+            };
+
+            try {
+                let count = 0;
+                for (const [dateStr, dayActivities] of Object.entries(activities)) {
+                    const weekId = getCurrentWeekId(new Date(dateStr));
+                    const docRef = db.collection('families')
+                        .doc(currentFamily)
+                        .collection('weeklySchedule')
+                        .doc(weekId)
+                        .collection('days')
+                        .doc(dateStr);
+
+                    const activitiesData = dayActivities.map((activity, index) => ({
+                        id: `activity-${Date.now()}-${index}`,
+                        name: activity.name,
+                        person: activity.person,
+                        order: index
+                    }));
+
+                    await docRef.set({ activities: activitiesData }, { merge: true });
+                    count += dayActivities.length;
+                }
+
+                showNotification(`Preloaded ${count} activities for Week 1!`, 'success');
+                renderWeeklySchedule();
+            } catch (error) {
+                console.error('Error preloading activities:', error);
+                showNotification(`Error preloading activities: ${error.message}`, 'error');
+            }
         }
 
         // Start creating a new activity
