@@ -4389,30 +4389,30 @@
         async function preloadWeek1Activities() {
             const activities = {
                 '2026-09-07': [ // Monday
-                    { name: 'Daddy drop-off', person: 'Daddy' },
-                    { name: 'Mommy drop-off', person: 'Mommy' }
+                    { name: 'Daddy drop-off', responsible: 'Daddy' },
+                    { name: 'Mommy drop-off', responsible: 'Mommy' }
                 ],
                 '2026-09-08': [ // Tuesday
-                    { name: 'Mommy drop-off', person: 'Mommy' },
-                    { name: 'Granny/Oppa pickup Swimming', person: 'Granny' }
+                    { name: 'Mommy drop-off', responsible: 'Mommy' },
+                    { name: 'Granny/Oppa pickup Swimming', responsible: 'Granny' }
                 ],
                 '2026-09-09': [ // Wednesday
-                    { name: 'Mommy drop-off', person: 'Mommy' },
-                    { name: 'Daddy homework', person: 'Daddy' }
+                    { name: 'Mommy drop-off', responsible: 'Mommy' },
+                    { name: 'Daddy homework', responsible: 'Daddy' }
                 ],
                 '2026-09-10': [ // Thursday
-                    { name: 'Daddy drop-off', person: 'Daddy' },
-                    { name: 'Granny/Oppa or Mommy pickup Swimming', person: 'Granny' },
-                    { name: 'Mommy dinner', person: 'Mommy' }
+                    { name: 'Daddy drop-off', responsible: 'Daddy' },
+                    { name: 'Granny/Oppa or Mommy pickup Swimming', responsible: 'Granny' },
+                    { name: 'Mommy dinner', responsible: 'Mommy' }
                 ],
                 '2026-09-11': [ // Friday
-                    { name: 'Mommy drop-off', person: 'Mommy' },
-                    { name: 'Daddy pickup Swimming', person: 'Daddy' },
-                    { name: 'Daddy sleepover', person: 'Daddy' }
+                    { name: 'Mommy drop-off', responsible: 'Mommy' },
+                    { name: 'Daddy pickup Swimming', responsible: 'Daddy' },
+                    { name: 'Daddy sleepover', responsible: 'Daddy' }
                 ],
                 '2026-09-12': [ // Saturday
-                    { name: 'Mommy', person: 'Mommy' },
-                    { name: 'Daddy sleepover', person: 'Daddy' }
+                    { name: 'Mommy', responsible: 'Mommy' },
+                    { name: 'Daddy sleepover', responsible: 'Daddy' }
                 ]
             };
 
@@ -4430,7 +4430,7 @@
                     const activitiesData = dayActivities.map((activity, index) => ({
                         id: `activity-${Date.now()}-${index}`,
                         name: activity.name,
-                        person: activity.person,
+                        responsible: activity.responsible,
                         order: index
                     }));
 
