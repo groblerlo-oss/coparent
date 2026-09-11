@@ -2832,9 +2832,13 @@
 
             try {
                 // Calculate archive date (event date + 5 days)
-                const eventDate = new Date(date);
+                // Parse date as local time, not UTC
+                const [year, month, day] = date.split('-').map(Number);
+                const eventDate = new Date(year, month - 1, day);
                 const archiveDate = new Date(eventDate);
                 archiveDate.setDate(archiveDate.getDate() + 5);
+
+                const archivedDateStr = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}-${String(archiveDate.getDate()).padStart(2, '0')}`;
 
                 const eventData = {
                     title: title,
@@ -2845,7 +2849,7 @@
                     createdByName: currentUser.displayName || 'Unknown',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     isArchived: false,
-                    archivedDate: archiveDate.toISOString().split('T')[0],
+                    archivedDate: archivedDateStr,
                     editHistory: []
                 };
 
