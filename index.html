@@ -4294,7 +4294,7 @@
 
         // Load and display activities for a specific day
         async function loadDayActivities(dayDate, contentDiv) {
-            const dateStr = dayDate.toISOString().split('T')[0];
+            const dateStr = `${dayDate.getFullYear()}-${String(dayDate.getMonth() + 1).padStart(2, '0')}-${String(dayDate.getDate()).padStart(2, '0')}`;
 
             try {
                 const docRef = db.collection('families')
@@ -4315,17 +4315,20 @@
                         contentDiv.appendChild(activityEl);
                     }
                 }
-
-                // Add "+" button to create new activity
-                const addBtn = document.createElement('button');
-                addBtn.className = 'schedule-add-activity-btn';
-                addBtn.textContent = '+ Add Activity';
-                addBtn.onclick = () => startCreateActivity(dateStr, contentDiv);
-                contentDiv.appendChild(addBtn);
-
             } catch (error) {
                 console.error(`Error loading activities for ${dateStr}:`, error);
             }
+
+            // Always add "+" button to create new activity (even if load fails)
+            const addBtn = document.createElement('button');
+            addBtn.className = 'schedule-add-activity-btn';
+            addBtn.textContent = '+ Add Activity';
+            addBtn.style.display = isNannyUser ? 'none' : 'block';
+            addBtn.onclick = () => {
+                console.log('Add activity clicked for', dateStr);
+                startCreateActivity(dateStr, contentDiv);
+            };
+            contentDiv.appendChild(addBtn);
         }
 
         // Get week ID (Monday date of the week in ISO format)
