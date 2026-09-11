@@ -202,6 +202,15 @@
             background: #dc3545;
         }
 
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #ffb300;
+        }
+
         .btn-small {
             width: auto;
             padding: 8px 16px;
@@ -1781,6 +1790,7 @@
             </div>
 
             <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-warning" id="markSwappedBtn" style="display: none; margin-right: 10px;" onclick="showSwapModal()">Mark as Swapped 🔄</button>
                 <button class="btn" id="editTimeBtn" onclick="editEventTime()" style="display: none;">Edit Time</button>
                 <button class="btn" id="editDateBtn" onclick="editEventDate()" style="display: none;">Edit Date</button>
                 <button class="btn btn-danger" id="deleteEventBtn" onclick="deleteEventFromModal()" style="display: none;">Delete</button>
@@ -2788,12 +2798,26 @@
             editDateBtn.style.display = isParent ? 'block' : 'none';
             deleteEventBtn.style.display = isParent ? 'block' : 'none';
 
+            // Show swap button only for custody events (not for regular events)
+            const markSwappedBtn = document.getElementById('markSwappedBtn');
+            if (eventData.category === 'custody' && eventData.isCustodyPattern) {
+                markSwappedBtn.style.display = 'inline-block';
+            } else {
+                markSwappedBtn.style.display = 'none';
+            }
+
             modal.classList.remove('hidden');
         }
 
         function closeEventDetailsModal() {
             document.getElementById('eventDetailsModal').classList.add('hidden');
             window.currentEventDetails = null;
+        }
+
+        // Task 6: Show swap modal (to be implemented)
+        function showSwapModal() {
+            // This will be implemented in Task 6
+            showNotification('Swap functionality coming in Task 6', 'info');
         }
 
         async function editEventTime() {
