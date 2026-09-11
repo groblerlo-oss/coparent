@@ -1849,6 +1849,34 @@
         </div>
     </div>
 
+    <!-- Swap Custody Modal -->
+    <div id="swapModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>Move Custody Weekend 🔄</h3>
+                <button onclick="closeSwapModal()" style="background: none; border: none; font-size: 1.5em; cursor: pointer;">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Current Weekend:</label>
+                    <p id="swapCurrentDate" style="font-weight: bold;"></p>
+                </div>
+                <div class="form-group">
+                    <label>Move to Saturday:</label>
+                    <input type="date" id="swapNewDate">
+                </div>
+                <div class="form-group">
+                    <label>Why the swap? (optional)</label>
+                    <textarea id="swapNotes" placeholder="e.g., Daddy's birthday weekend" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-height: 80px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; padding: 15px; border-top: 1px solid #ddd;">
+                <button class="btn btn-secondary" onclick="closeSwapModal()">Cancel</button>
+                <button class="btn btn-success" onclick="confirmSwap()">Confirm Swap</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Document Modal -->
     <div id="addDocumentModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 999; overflow-y: auto;">
         <div style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; margin: 20px auto;">
@@ -2814,10 +2842,128 @@
             window.currentEventDetails = null;
         }
 
-        // Task 6: Show swap modal (to be implemented)
+        // ===== TASK 6: Swap Modal Functions =====
+        let swappedEventData = null;
+
         function showSwapModal() {
-            // This will be implemented in Task 6
-            showNotification('Swap functionality coming in Task 6', 'info');
+            if (!window.currentEventDetails || !window.currentEventDetails.isCustodyPattern) {
+                showNotification('Can only swap custody pattern events', 'error');
+                return;
+            }
+
+            swappedEventData = JSON.parse(JSON.stringify(window.currentEventDetails));
+
+            document.getElementById('swapCurrentDate').textContent = `${window.currentEventDetails.date} (${window.currentEventDetails.title})`;
+            document.getElementById('swapNewDate').value = '';
+            document.getElementById('swapNotes').value = '';
+
+            const modal = document.getElementById('swapModal');
+            modal.classList.remove('hidden');
+
+            closeEventDetailsModal();
+        }
+
+        function closeSwapModal() {
+            const modal = document.getElementById('swapModal');
+            modal.classList.add('hidden');
+            swappedEventData = null;
+        }
+
+        async function confirmSwap() {
+            if (!swappedEventData) return;
+
+            const newSaturdayStr = document.getElementById('swapNewDate').value;
+            const swapNotes = document.getElementById('swapNotes').value;
+
+            // Validate new date is Saturday
+            if (!isSaturday(newSaturdayStr)) {
+                showNotification('Please select a Saturday', 'error');
+                return;
+            }
+
+            // Validate new date >= current date
+            if (newSaturdayStr <= swappedEventData.date) {
+                showNotification('New date must be after current date', 'error');
+                return;
+            }
+
+            try {
+                const batch = db.batch();
+                const eventsCollection = db.collection('families').doc(currentFamily).collection('events');
+
+                // 1. Update original event: mark as swapped
+                const originalRef = eventsCollection.doc(swappedEventData.id);
+                batch.update(originalRef, {
+                    swappedTo: newSaturdayStr,
+                    swapNotes: swapNotes,
+                    swappedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // 2. Create replacement events on new Saturday and Sunday
+                const [newYear, newMonth, newDay] = newSaturdayStr.split('-').map(Number);
+                const saturdayDate = new Date(newYear, newMonth - 1, newDay);
+                const sundayDate = new Date(saturdayDate);
+                sundayDate.setDate(sundayDate.getDate() + 1);
+                const sundayStr = formatDateToISO(sundayDate);
+
+                // Create Saturday event
+                const saturdayEventRef = eventsCollection.doc();
+                batch.set(saturdayEventRef, {
+                    title: swappedEventData.title,
+                    date: newSaturdayStr,
+                    time: swappedEventData.time || '',
+                    category: swappedEventData.category,
+                    notes: swappedEventData.notes,
+                    isCustodyPattern: true,
+                    patternId: swappedEventData.patternId,
+                    patternRecurrence: swappedEventData.patternRecurrence,
+                    patternStartDate: swappedEventData.patternStartDate,
+                    patternEndDate: swappedEventData.patternEndDate,
+                    patternPerson: swappedEventData.patternPerson,
+                    swappedFrom: swappedEventData.date,
+                    swappedTo: null,
+                    swapNotes: swapNotes,
+                    createdBy: auth.currentUser.uid,
+                    createdByName: currentUser.displayName || 'Unknown',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    isArchived: false,
+                    editHistory: []
+                });
+
+                // Create Sunday event
+                const sundayEventRef = eventsCollection.doc();
+                batch.set(sundayEventRef, {
+                    title: swappedEventData.title,
+                    date: sundayStr,
+                    time: swappedEventData.time || '',
+                    category: swappedEventData.category,
+                    notes: swappedEventData.notes,
+                    isCustodyPattern: true,
+                    patternId: swappedEventData.patternId,
+                    patternRecurrence: swappedEventData.patternRecurrence,
+                    patternStartDate: swappedEventData.patternStartDate,
+                    patternEndDate: swappedEventData.patternEndDate,
+                    patternPerson: swappedEventData.patternPerson,
+                    swappedFrom: swappedEventData.date,
+                    swappedTo: null,
+                    swapNotes: swapNotes,
+                    createdBy: auth.currentUser.uid,
+                    createdByName: currentUser.displayName || 'Unknown',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    isArchived: false,
+                    editHistory: []
+                });
+
+                await batch.commit();
+
+                showNotification(`Swapped! ${swappedEventData.date} moved to ${newSaturdayStr}`, 'success');
+                closeSwapModal();
+                await loadCalendarEvents();
+
+            } catch (error) {
+                console.error('Error swapping custody event:', error);
+                showNotification(`Error: ${error.message}`, 'error');
+            }
         }
 
         async function editEventTime() {
