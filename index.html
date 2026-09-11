@@ -4919,6 +4919,90 @@
             todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
         }
+
+        // ===== TASK 3: Date Generation and Validation Helper Functions =====
+
+        // Check if date is a Saturday (0-6 where 0=Sunday, 6=Saturday)
+        function isSaturday(dateString) {
+          const [year, month, day] = dateString.split('-').map(Number);
+          const date = new Date(year, month - 1, day);
+          return date.getDay() === 6;
+        }
+
+        // Format a JS Date to YYYY-MM-DD (local timezone, no UTC conversion)
+        function formatDateToISO(date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+
+        // Generate all Saturday-Sunday pairs for a custody pattern
+        // recurrence: "weekly" | "biweekly" | "monthly"
+        // startDate: YYYY-MM-DD (must be Saturday)
+        // endDate: YYYY-MM-DD or null (null = 3 years from start)
+        function generateCustodyDates(startDate, recurrence, endDate) {
+          const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+          const baseDate = new Date(startYear, startMonth - 1, startDay);
+
+          // Calculate end date (3 years if not specified)
+          let finalEndDate;
+          if (endDate) {
+            const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+            finalEndDate = new Date(endYear, endMonth - 1, endDay);
+          } else {
+            finalEndDate = new Date(baseDate);
+            finalEndDate.setFullYear(finalEndDate.getFullYear() + 3);
+          }
+
+          // Calculate interval in days
+          const intervalMap = { weekly: 7, biweekly: 14, monthly: 30 };
+          const interval = intervalMap[recurrence];
+
+          const pairs = [];
+          let currentDate = new Date(baseDate);
+
+          while (currentDate <= finalEndDate) {
+            const saturday = formatDateToISO(currentDate);
+
+            // Sunday is next day
+            const sundayDate = new Date(currentDate);
+            sundayDate.setDate(sundayDate.getDate() + 1);
+            const sunday = formatDateToISO(sundayDate);
+
+            pairs.push({ saturday, sunday });
+
+            // Move to next occurrence
+            currentDate.setDate(currentDate.getDate() + interval);
+          }
+
+          return pairs;
+        }
+
+        // Validate that start date is a Saturday
+        function validateStartDate(dateString) {
+          if (!dateString) return { valid: false, error: "Starting date is required" };
+          if (!isSaturday(dateString)) return { valid: false, error: "Please select a Saturday" };
+          return { valid: true };
+        }
+
+        // Validate end date (optional, but if provided must be >= startDate and a Sunday)
+        function validateEndDate(dateString, startDate) {
+          if (!dateString) return { valid: true }; // Optional field
+
+          const [endYear, endMonth, endDay] = dateString.split('-').map(Number);
+          const endDate = new Date(endYear, endMonth - 1, endDay);
+
+          const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+          const start = new Date(startYear, startMonth - 1, startDay);
+
+          if (endDate < start) return { valid: false, error: "End date must be >= start date" };
+
+          // Check if it's a Sunday (0=Sunday)
+          if (endDate.getDay() !== 0) return { valid: false, error: "End date must be a Sunday" };
+
+          return { valid: true };
+        }
     </script>
 </body>
 </html>
