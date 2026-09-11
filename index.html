@@ -1683,6 +1683,15 @@
             </div>
 
             <div id="recurrenceFields" class="recurrence-section hidden">
+                <div class="form-group">
+                    <label for="eventRecurrencePattern">Recurrence Pattern:</label>
+                    <select id="eventRecurrencePattern" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="weekly">Weekly (every week)</option>
+                        <option value="biweekly">Bi-weekly (every 2 weeks)</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+
                 <label>Repeat on these days:</label>
                 <div class="day-checkboxes">
                     <div class="day-checkbox">
@@ -2916,9 +2925,10 @@
                 if (isRecurring) {
                     const recurrenceDays = getSelectedRecurrenceDays();
                     const recurrenceEndDate = document.getElementById('eventRecurrenceEndDate').value;
+                    const recurrencePattern = document.getElementById('eventRecurrencePattern').value;
                     eventData.recurrence = {
                         enabled: true,
-                        pattern: 'weekly',
+                        pattern: recurrencePattern,
                         daysOfWeek: recurrenceDays,
                         endDate: recurrenceEndDate || null
                     };
@@ -4524,6 +4534,9 @@
 
           const formDiv = document.createElement('div');
           formDiv.className = 'schedule-inline-edit';
+          formDiv.style.display = 'flex';
+          formDiv.style.flexDirection = 'column';
+          formDiv.style.gap = '8px';
 
           const input = document.createElement('input');
           input.type = 'text';
@@ -4537,25 +4550,48 @@
             <option value="Nanny">Nanny</option>
           `;
 
+          const recurrenceSelect = document.createElement('select');
+          recurrenceSelect.innerHTML = `
+            <option value="none">Single day only</option>
+            <option value="weekly">Every week</option>
+            <option value="biweekly">Every 2 weeks</option>
+            <option value="monthly">Every month</option>
+          `;
+          recurrenceSelect.style.fontSize = '0.9em';
+
+          const buttonRow = document.createElement('div');
+          buttonRow.style.display = 'flex';
+          buttonRow.style.gap = '5px';
+
           const saveBtn = document.createElement('button');
           saveBtn.textContent = 'Save';
+          saveBtn.style.flex = '1';
           saveBtn.onclick = async () => {
-            await createNewActivity(input.value, personSelect.value, dateStr);
+            await createNewActivity(input.value, personSelect.value, dateStr, recurrenceSelect.value);
             containerDiv.removeChild(formDiv);
             await loadDayActivities(new Date(dateStr), containerDiv);
           };
 
+          const cancelBtn = document.createElement('button');
+          cancelBtn.textContent = 'Cancel';
+          cancelBtn.style.flex = '1';
+          cancelBtn.style.background = '#f0f0f0';
+          cancelBtn.onclick = () => containerDiv.removeChild(formDiv);
+
           formDiv.appendChild(input);
           formDiv.appendChild(personSelect);
-          formDiv.appendChild(saveBtn);
+          formDiv.appendChild(recurrenceSelect);
+          buttonRow.appendChild(saveBtn);
+          buttonRow.appendChild(cancelBtn);
+          formDiv.appendChild(buttonRow);
 
           const lastAddBtn = containerDiv.querySelector('.schedule-add-activity-btn');
           containerDiv.insertBefore(formDiv, lastAddBtn);
           input.focus();
         }
 
-        // Save new activity to Firestore
-        async function createNewActivity(nameAndPerson, responsible, dateStr) {
+        // Save new activity to Firestore with optional recurrence
+        async function createNewActivity(nameAndPerson, responsible, dateStr, recurrencePattern = 'none') {
           if (!currentFamily || !nameAndPerson.trim()) return;
 
           try {
@@ -4563,33 +4599,59 @@
               ? nameAndPerson.split(' - ', 2)
               : [nameAndPerson, responsible];
 
-            const weekId = getCurrentWeekId(new Date(dateStr));
-            const docRef = db.collection('families')
-              .doc(currentFamily)
-              .collection('weeklySchedule')
-              .doc(weekId)
-              .collection('days')
-              .doc(dateStr);
-
-            const doc = await docRef.get();
-            const existingActivities = doc.exists ? (doc.data().activities || []) : [];
-
+            const activityId = `activity-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             const newActivity = {
-              id: `activity-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: activityId,
               name: name.trim(),
               responsible: personOverride.trim(),
               createdAt: new Date(),
               createdBy: auth.currentUser.uid,
-              order: existingActivities.length
+              recurrence: recurrencePattern
             };
 
-            await docRef.set({
-              date: dateStr,
-              activities: [...existingActivities, newActivity],
-              updatedAt: new Date()
-            });
+            // Determine dates to add activity to
+            const datesToAdd = [dateStr];
+            if (recurrencePattern !== 'none') {
+              const baseDate = new Date(dateStr);
+              const interval = recurrencePattern === 'weekly' ? 7 :
+                              recurrencePattern === 'biweekly' ? 14 : 30;
 
-            showNotification('Activity added', 'success');
+              // Add activity for next 3 months
+              for (let i = 1; i < 12; i++) {
+                const futureDate = new Date(baseDate);
+                futureDate.setDate(baseDate.getDate() + (i * interval));
+                datesToAdd.push(futureDate.toISOString().split('T')[0]);
+              }
+            }
+
+            // Add activity to all applicable dates
+            for (const dateToAdd of datesToAdd) {
+              const weekId = getCurrentWeekId(new Date(dateToAdd));
+              const docRef = db.collection('families')
+                .doc(currentFamily)
+                .collection('weeklySchedule')
+                .doc(weekId)
+                .collection('days')
+                .doc(dateToAdd);
+
+              const doc = await docRef.get();
+              const existingActivities = doc.exists ? (doc.data().activities || []) : [];
+
+              const activityForDate = {
+                ...newActivity,
+                order: existingActivities.length
+              };
+
+              await docRef.set({
+                date: dateToAdd,
+                activities: [...existingActivities, activityForDate],
+                updatedAt: new Date()
+              });
+            }
+
+            const message = recurrencePattern === 'none' ? 'Activity added' :
+                           `Activity added (${recurrencePattern})`;
+            showNotification(message, 'success');
           } catch (error) {
             console.error('Error creating activity:', error);
             showNotification('Error adding activity', 'error');
