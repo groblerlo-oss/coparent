@@ -5053,7 +5053,8 @@
           if (endDateStr) {
             const endValidation = validateEndDate(endDateStr, startDateStr);
             if (!endValidation.valid) {
-              alert(endValidation.error);
+              document.getElementById('custodyPatternStartDateError').textContent = endValidation.error;
+              document.getElementById('custodyPatternStartDateError').style.display = 'block';
               return;
             }
           }
@@ -5063,7 +5064,7 @@
 
           // Handle error case (invalid recurrence, etc.)
           if (datePairs.error) {
-            alert(`Error creating pattern: ${datePairs.error}`);
+            showNotification(`❌ Error creating pattern: ${datePairs.error}`, 'error');
             return;
           }
 
@@ -5111,6 +5112,11 @@
 
           // Save all events to Firestore with batch write
           try {
+            if (events.length === 0) {
+              showNotification('No events generated from pattern', 'error');
+              return;
+            }
+
             const batch = db.batch();
             const eventsCollection = db.collection('families').doc(familyId).collection('events');
 
@@ -5139,7 +5145,7 @@
 
           } catch (error) {
             console.error('Error creating custody pattern:', error);
-            showNotification(`❌ Error: Could not save custody pattern. ${error.message}`);
+            showNotification(`❌ Error: Could not save custody pattern. ${error.message}`, 'error');
           }
         }
     </script>
