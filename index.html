@@ -428,39 +428,45 @@
             margin-top: 5px;
         }
 
-        .event-dot {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+        .event-badge {
+            background: #f0f0f0;
+            border-left: 3px solid #667eea;
+            padding: 2px 6px;
+            margin: 2px 0;
+            font-size: 0.8em;
+            color: #333;
+            border-radius: 3px;
             cursor: pointer;
             transition: all 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
 
-        .event-dot:hover {
-            transform: scale(1.2);
+        .event-badge:hover {
+            background: #e0e0e0;
+            transform: translateX(2px);
         }
 
-        .event-dot.appointment {
-            background: #dc3545;
+        .event-badge.appointment {
+            border-left-color: #dc3545;
+            background: #ffe5e5;
         }
 
-        .event-dot.activity {
-            background: #ffc107;
-            color: #333;
+        .event-badge.activity {
+            border-left-color: #ffc107;
+            background: #fffef0;
         }
 
-        .event-dot.note {
-            background: #6c757d;
+        .event-badge.note {
+            border-left-color: #6c757d;
+            background: #f5f5f5;
         }
 
-        .event-dot.general {
-            background: #667eea;
+        .event-badge.general {
+            border-left-color: #667eea;
+            background: #f0f3ff;
         }
 
         .event-more {
@@ -2517,32 +2523,29 @@
             dateDiv.textContent = date;
             cell.appendChild(dateDiv);
 
-            // Add event dots with hover tooltips
+            // Add event names
             if (!otherMonth && events.length > 0) {
                 const eventsDiv = document.createElement('div');
                 eventsDiv.className = 'calendar-events';
 
                 events.slice(0, 3).forEach(event => {
-                    const dot = document.createElement('div');
-                    dot.className = `event-dot ${event.category || 'general'}`;
+                    const eventBadge = document.createElement('div');
+                    eventBadge.className = `event-badge ${event.category || 'general'}`;
 
-                    // Create tooltip text
-                    let tooltipText = event.title;
+                    // Show event title with time if available
+                    let eventText = event.title;
                     if (event.time) {
-                        tooltipText += ` @ ${event.time}`;
+                        eventText += ` ${event.time}`;
                     }
-                    if (event.category) {
-                        tooltipText += ` (${event.category})`;
-                    }
-
-                    dot.title = tooltipText;
-                    dot.style.cursor = 'pointer';
-                    dot.onclick = (e) => {
+                    eventBadge.textContent = eventText;
+                    eventBadge.style.cursor = 'pointer';
+                    eventBadge.title = event.description || '';
+                    eventBadge.onclick = (e) => {
                         e.stopPropagation();
                         showEventDetails(event.id, event);
                     };
 
-                    eventsDiv.appendChild(dot);
+                    eventsDiv.appendChild(eventBadge);
                 });
 
                 if (events.length > 3) {
