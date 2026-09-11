@@ -2811,15 +2811,18 @@
 
         async function addEvent() {
             const title = document.getElementById('eventTitle').value.trim();
-            const date = document.getElementById('eventDate').value;
+            const dateObj = document.getElementById('eventDate').valueAsDate;
             const time = document.getElementById('eventTime').value;
             const notes = document.getElementById('eventNotes').value.trim();
             const isRecurring = document.getElementById('eventRecurring').checked;
 
-            if (!title || !date) {
+            if (!title || !dateObj) {
                 showNotification('Please fill in required fields', 'error');
                 return;
             }
+
+            // Format date as YYYY-MM-DD in local timezone
+            const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
 
             // Validate recurrence
             if (isRecurring) {
@@ -2832,17 +2835,14 @@
 
             try {
                 // Calculate archive date (event date + 5 days)
-                // Parse date as local time, not UTC
-                const [year, month, day] = date.split('-').map(Number);
-                const eventDate = new Date(year, month - 1, day);
-                const archiveDate = new Date(eventDate);
+                const archiveDate = new Date(dateObj);
                 archiveDate.setDate(archiveDate.getDate() + 5);
 
                 const archivedDateStr = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}-${String(archiveDate.getDate()).padStart(2, '0')}`;
 
                 const eventData = {
                     title: title,
-                    date: date,
+                    date: dateStr,
                     time: time || '',
                     notes: notes,
                     createdBy: currentUser.uid,
