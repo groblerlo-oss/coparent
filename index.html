@@ -4931,6 +4931,9 @@
 
         // Format a JS Date to YYYY-MM-DD (local timezone, no UTC conversion)
         function formatDateToISO(date) {
+          if (!(date instanceof Date) || isNaN(date)) {
+            throw new Error("formatDateToISO expects a valid Date object");
+          }
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
@@ -4958,6 +4961,9 @@
           // Calculate interval in days
           const intervalMap = { weekly: 7, biweekly: 14, monthly: 30 };
           const interval = intervalMap[recurrence];
+          if (!interval) {
+            return { error: `Invalid recurrence type: ${recurrence}` };
+          }
 
           const pairs = [];
           let currentDate = new Date(baseDate);
