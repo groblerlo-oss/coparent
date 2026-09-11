@@ -1174,6 +1174,13 @@
             font-size: 0.9em;
             margin: 8px;
           }
+
+          /* Custody event badges - responsive */
+          .event-badge.custody,
+          .event-badge.swapped,
+          .event-badge.custody-pattern {
+            font-size: 0.8em;
+          }
         }
 
         /* Extra small phones (under 375px) */
@@ -1215,41 +1222,32 @@
           .schedule-week {
             margin: 10px 5px;
           }
+
+          /* Custody event badges - extra small phones */
+          .event-badge.custody,
+          .event-badge.swapped,
+          .event-badge.custody-pattern {
+            font-size: 0.75em;
+            padding: 3px 6px;
+          }
         }
 
-        /* Custody Event Styling */
+        /* Custody Event Badge */
         .event-badge.custody {
-          background-color: #4caf50;
-          color: white;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 0.85em;
-          font-weight: 500;
-          display: inline-block;
-          margin: 2px 0;
+          border-left-color: #4caf50;
+          background: #f1f8f6;
         }
 
         /* Swapped Event Badge */
         .event-badge.swapped {
-          background-color: #ff9800;
-          color: white;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 0.85em;
-          font-weight: 500;
-          display: inline-block;
-          margin: 2px 0;
-          border: 2px solid #e65100;
+          border-left-color: #ff9800;
+          background: #fff3f0;
         }
 
         /* Custody Pattern Badge */
-        .custody-pattern-badge {
-          background-color: #2196f3;
-          color: white;
-          padding: 2px 6px;
-          border-radius: 3px;
-          font-size: 0.75em;
-          margin-left: 4px;
+        .event-badge.custody-pattern {
+          border-left-color: #2196f3;
+          background: #f0f3ff;
         }
     </style>
 </head>
