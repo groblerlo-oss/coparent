@@ -2608,7 +2608,13 @@
             if (eventData.editHistory && eventData.editHistory.length > 0) {
                 editHistorySection.style.display = 'block';
                 editHistoryContent.innerHTML = eventData.editHistory.map(entry => {
-                    const changeDate = new Date(entry.changedAt.toDate()).toLocaleDateString();
+                    let dateObj = entry.changedAt;
+                    if (dateObj.toDate) {
+                        dateObj = dateObj.toDate();
+                    } else if (typeof dateObj === 'string') {
+                        dateObj = new Date(dateObj);
+                    }
+                    const changeDate = new Date(dateObj).toLocaleDateString();
                     return `
                         <div class="edit-entry">
                             <strong>${entry.changedByName}</strong> changed <strong>${entry.field}</strong>
@@ -2665,7 +2671,7 @@
                 const editEntry = {
                     changedBy: currentUser.uid,
                     changedByName: currentUser.displayName || 'Unknown',
-                    changedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    changedAt: new Date(),
                     field: 'time',
                     oldValue: oldTime,
                     newValue: newTime
@@ -2713,7 +2719,7 @@
                 const editEntry = {
                     changedBy: currentUser.uid,
                     changedByName: currentUser.displayName || 'Unknown',
-                    changedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    changedAt: new Date(),
                     field: 'date',
                     oldValue: oldDate,
                     newValue: newDateStr
