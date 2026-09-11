@@ -1693,8 +1693,10 @@
                 </div>
             </div>
 
-            <div style="margin-top: 20px; display: flex; gap: 10px;">
+            <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                 <button class="btn" id="editTimeBtn" onclick="editEventTime()" style="display: none;">Edit Time</button>
+                <button class="btn" id="editDateBtn" onclick="editEventDate()" style="display: none;">Edit Date</button>
+                <button class="btn btn-danger" id="deleteEventBtn" onclick="deleteEventFromModal()" style="display: none;">Delete</button>
                 <button class="btn btn-secondary" onclick="closeEventDetailsModal()">Close</button>
             </div>
         </div>
@@ -2581,6 +2583,8 @@
             const editHistorySection = document.getElementById('editHistorySection');
             const editHistoryContent = document.getElementById('editHistoryContent');
             const editTimeBtn = document.getElementById('editTimeBtn');
+            const editDateBtn = document.getElementById('editDateBtn');
+            const deleteEventBtn = document.getElementById('deleteEventBtn');
 
             // Store event data globally for editing
             window.currentEventDetails = {
@@ -2618,8 +2622,11 @@
                 editHistorySection.style.display = 'none';
             }
 
-            // Show edit button if user role is parent
-            editTimeBtn.style.display = userRole === 'parent' ? 'block' : 'none';
+            // Show edit buttons if user role is parent
+            const isParent = userRole === 'parent';
+            editTimeBtn.style.display = isParent ? 'block' : 'none';
+            editDateBtn.style.display = isParent ? 'block' : 'none';
+            deleteEventBtn.style.display = isParent ? 'block' : 'none';
 
             modal.classList.remove('hidden');
         }
@@ -2673,6 +2680,74 @@
 
                 addNotification(`✏️ Event updated: Time changed ${oldTime} → ${newTime}`, 'info');
                 showNotification('Event time updated successfully!', 'success');
+                closeEventDetailsModal();
+                loadCalendarEvents();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function editEventDate() {
+            const currentDate = new Date(window.currentEventDetails.date);
+            const defaultDate = currentDate.toISOString().split('T')[0];
+            const newDateStr = prompt('Enter new date (YYYY-MM-DD):', defaultDate);
+            if (newDateStr === null) return; // User cancelled
+
+            // Validate date format
+            const dateMatch = newDateStr.match(/^\d{4}-\d{2}-\d{2}$/);
+            if (!dateMatch) {
+                showNotification('Date must be in YYYY-MM-DD format', 'error');
+                return;
+            }
+
+            try {
+                const oldDate = window.currentEventDetails.date;
+                const eventRef = db.collection('families').doc(currentFamily)
+                    .collection('events')
+                    .doc(window.currentEventDetails.id);
+
+                // Get current edit history
+                let editHistory = window.currentEventDetails.editHistory || [];
+
+                // Add new edit entry
+                const editEntry = {
+                    changedBy: currentUser.uid,
+                    changedByName: currentUser.displayName || 'Unknown',
+                    changedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    field: 'date',
+                    oldValue: oldDate,
+                    newValue: newDateStr
+                };
+                editHistory.push(editEntry);
+
+                // Update event
+                await eventRef.update({
+                    date: newDateStr,
+                    editHistory: editHistory
+                });
+
+                addNotification(`✏️ Event updated: Date changed ${oldDate} → ${newDateStr}`, 'info');
+                showNotification('Event date updated successfully!', 'success');
+                closeEventDetailsModal();
+                loadCalendarEvents();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function deleteEventFromModal() {
+            const confirmed = confirm(`Delete event "${window.currentEventDetails.title}"? This cannot be undone.`);
+            if (!confirmed) return;
+
+            try {
+                const eventRef = db.collection('families').doc(currentFamily)
+                    .collection('events')
+                    .doc(window.currentEventDetails.id);
+
+                await eventRef.delete();
+
+                addNotification(`🗑️ Event deleted: "${window.currentEventDetails.title}"`, 'info');
+                showNotification('Event deleted successfully!', 'success');
                 closeEventDetailsModal();
                 loadCalendarEvents();
             } catch (error) {
