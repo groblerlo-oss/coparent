@@ -941,6 +941,39 @@
           position: relative;
         }
 
+        /* 3-day view styles */
+        .schedule-three-days {
+          padding: 0;
+        }
+
+        .schedule-three-days-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 15px;
+          padding: 20px;
+        }
+
+        .schedule-three-day-column {
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          overflow: hidden;
+        }
+
+        .schedule-three-day-header {
+          background: #667eea;
+          color: white;
+          padding: 15px;
+          text-align: center;
+          font-weight: 600;
+          border-bottom: none;
+        }
+
+        .schedule-three-day-column .schedule-day-content {
+          min-height: 300px;
+          background: #fafafa;
+        }
+
         .schedule-activity {
           background: white;
           border-left: 4px solid #667eea;
@@ -1160,6 +1193,17 @@
 
           .schedule-day-content {
             min-height: 80px;
+          }
+
+          /* 3-day view mobile */
+          .schedule-three-days-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            padding: 10px;
+          }
+
+          .schedule-three-day-column .schedule-day-content {
+            min-height: 200px;
           }
 
           .schedule-activity {
@@ -4195,7 +4239,7 @@
             }
         }
 
-        // Render weekly schedule with scrollable weeks
+        // Render 3-day schedule (today, tomorrow, next day)
         async function renderWeeklySchedule() {
             if (!currentFamily) return;
 
@@ -4205,29 +4249,54 @@
             container.innerHTML = '';
 
             try {
-                // Generate 4 weeks starting from this week
+                // Generate 3 days starting from today
                 const today = new Date();
-                const weeks = [];
-                const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay());
+                const threeDays = [];
 
-                for (let i = 0; i < 4; i++) {
-                    const weekStart = new Date(startOfWeek);
-                    weekStart.setDate(startOfWeek.getDate() + i * 7);
-                    weeks.push(weekStart);
+                for (let i = 0; i < 3; i++) {
+                    const dayDate = new Date(today);
+                    dayDate.setDate(today.getDate() + i);
+                    threeDays.push(dayDate);
                 }
 
-                // Render each week
-                for (const weekDate of weeks) {
-                    const weekElement = await createWeekElement(weekDate);
-                    container.appendChild(weekElement);
+                // Create 3-day view container
+                const threeDayDiv = document.createElement('div');
+                threeDayDiv.className = 'schedule-three-days';
+
+                const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const dayNames = ['Today', 'Tomorrow', 'Next Day'];
+
+                // Render 3 days in a row
+                const daysGrid = document.createElement('div');
+                daysGrid.className = 'schedule-three-days-grid';
+
+                for (let dayIndex = 0; dayIndex < 3; dayIndex++) {
+                    const dayDate = threeDays[dayIndex];
+                    const dayOfWeek = dayLabels[dayDate.getDay()];
+
+                    const dayCol = document.createElement('div');
+                    dayCol.className = 'schedule-three-day-column';
+
+                    // Day header
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'schedule-three-day-header';
+                    headerDiv.innerHTML = `<strong>${dayNames[dayIndex]}</strong><br><small>${dayOfWeek} ${dayDate.getDate()}</small>`;
+                    dayCol.appendChild(headerDiv);
+
+                    // Day content
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'schedule-day-content';
+                    contentDiv.id = `schedule-day-${dayDate.toISOString().split('T')[0]}`;
+
+                    // Load activities for this day
+                    await loadDayActivities(dayDate, contentDiv);
+
+                    dayCol.appendChild(contentDiv);
+                    daysGrid.appendChild(dayCol);
                 }
 
-                // Restore scroll position from localStorage
-                const scrollPos = localStorage.getItem('scheduleScrollPosition');
-                if (scrollPos) {
-                    container.scrollTop = parseInt(scrollPos);
-                }
+                threeDayDiv.appendChild(daysGrid);
+                container.appendChild(threeDayDiv);
 
                 // Remove old listener if it exists
                 container.removeEventListener('scroll', saveScheduleScroll);
@@ -4236,7 +4305,7 @@
                 container.addEventListener('scroll', saveScheduleScroll);
 
             } catch (error) {
-                console.error('Error rendering weekly schedule:', error);
+                console.error('Error rendering schedule:', error);
                 showNotification('Error loading schedule', 'error');
             }
         }
