@@ -5009,6 +5009,139 @@
 
           return { valid: true };
         }
+
+        // ===== TASK 4: Custody Pattern Modal Functions =====
+
+        // Show custody pattern modal
+        function showCustodyPatternModal() {
+          const modal = document.getElementById('custodyPatternModal');
+          modal.classList.remove('hidden');
+        }
+
+        // Close custody pattern modal
+        function closeCustodyPatternModal() {
+          const modal = document.getElementById('custodyPatternModal');
+          modal.classList.add('hidden');
+          clearCustodyPatternForm();
+        }
+
+        // Clear form inputs (reset for next use)
+        function clearCustodyPatternForm() {
+          document.getElementById('custodyPatternPerson').value = 'Daddy';
+          document.getElementById('custodyPatternStartDate').value = '';
+          document.getElementById('custodyPatternRecurrence').value = 'biweekly';
+          document.getElementById('custodyPatternEndDate').value = '';
+          document.getElementById('custodyPatternStartDateError').style.display = 'none';
+        }
+
+        // Save custody pattern (validate and create events)
+        async function saveCustodyPattern() {
+          const person = document.getElementById('custodyPatternPerson').value;
+          const startDateStr = document.getElementById('custodyPatternStartDate').value;
+          const recurrence = document.getElementById('custodyPatternRecurrence').value;
+          const endDateStr = document.getElementById('custodyPatternEndDate').value || null;
+
+          // Validate start date (must be Saturday)
+          const startValidation = validateStartDate(startDateStr);
+          if (!startValidation.valid) {
+            document.getElementById('custodyPatternStartDateError').textContent = startValidation.error;
+            document.getElementById('custodyPatternStartDateError').style.display = 'block';
+            return;
+          }
+
+          // Validate end date if provided (must be Sunday, >= start date)
+          if (endDateStr) {
+            const endValidation = validateEndDate(endDateStr, startDateStr);
+            if (!endValidation.valid) {
+              alert(endValidation.error);
+              return;
+            }
+          }
+
+          // Generate all date pairs for pattern
+          const datePairs = generateCustodyDates(startDateStr, recurrence, endDateStr);
+
+          // Handle error case (invalid recurrence, etc.)
+          if (datePairs.error) {
+            alert(`Error creating pattern: ${datePairs.error}`);
+            return;
+          }
+
+          // Build events for each Saturday-Sunday pair
+          const patternId = `pattern_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const events = [];
+
+          for (const pair of datePairs) {
+            // Saturday event
+            events.push({
+              title: `Child with ${person}`,
+              date: pair.saturday,
+              time: '',
+              category: 'custody',
+              notes: '',
+              isCustodyPattern: true,
+              patternId: patternId,
+              patternRecurrence: recurrence,
+              patternStartDate: startDateStr,
+              patternEndDate: endDateStr || null,
+              patternPerson: person,
+              swappedTo: null,
+              swappedFrom: null,
+              swapNotes: ''
+            });
+
+            // Sunday event
+            events.push({
+              title: `Child with ${person}`,
+              date: pair.sunday,
+              time: '',
+              category: 'custody',
+              notes: '',
+              isCustodyPattern: true,
+              patternId: patternId,
+              patternRecurrence: recurrence,
+              patternStartDate: startDateStr,
+              patternEndDate: endDateStr || null,
+              patternPerson: person,
+              swappedTo: null,
+              swappedFrom: null,
+              swapNotes: ''
+            });
+          }
+
+          // Save all events to Firestore with batch write
+          try {
+            const batch = db.batch();
+            const eventsCollection = db.collection('families').doc(familyId).collection('events');
+
+            for (const event of events) {
+              const docRef = eventsCollection.doc();
+              batch.set(docRef, {
+                ...event,
+                createdBy: auth.currentUser.uid,
+                createdByName: currentUserName,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                isArchived: false,
+                editHistory: []
+              });
+            }
+
+            await batch.commit();
+
+            const patternType = recurrence.charAt(0).toUpperCase() + recurrence.slice(1);
+            const endText = endDateStr ? ` through ${endDateStr}` : ' (ongoing)';
+            showNotification(`✅ Custody pattern created: ${patternType} starting ${startDateStr}${endText}`);
+
+            closeCustodyPatternModal();
+
+            // Refresh calendar display
+            await loadCalendarEvents();
+
+          } catch (error) {
+            console.error('Error creating custody pattern:', error);
+            showNotification(`❌ Error: Could not save custody pattern. ${error.message}`);
+          }
+        }
     </script>
 </body>
 </html>
