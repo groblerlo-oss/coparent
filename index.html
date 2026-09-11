@@ -2344,8 +2344,10 @@
             events.forEach(event => {
                 if (event.recurrence && event.recurrence.enabled && event.recurrence.daysOfWeek && event.recurrence.daysOfWeek.length > 0) {
                     // This is a recurring event - expand it
-                    const baseDate = new Date(event.date + 'T00:00:00');
-                    const endDate = event.recurrence.endDate ? new Date(event.recurrence.endDate + 'T23:59:59') : ninetyDaysFromNow;
+                    const [year, month, day] = event.date.split('-').map(Number);
+                    const baseDate = new Date(year, month - 1, day);
+                    const endDateParts = event.recurrence.endDate ? event.recurrence.endDate.split('-').map(Number) : null;
+                    const endDate = endDateParts ? new Date(endDateParts[0], endDateParts[1] - 1, endDateParts[2]) : ninetyDaysFromNow;
                     let currentDate = new Date(baseDate);
 
                     while (currentDate <= endDate && currentDate <= ninetyDaysFromNow) {
@@ -2447,8 +2449,9 @@
             // Load events for the month
             let monthEvents = {};
             if (currentFamily) {
-                const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-                const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+                const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                const startDate = formatDate(new Date(year, month, 1));
+                const endDate = formatDate(new Date(year, month + 1, 0));
 
                 try {
                     const eventsSnap = await db.collection('families').doc(currentFamily)
