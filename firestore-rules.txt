@@ -86,10 +86,11 @@ service cloud.firestore {
 
       // Weekly Schedule subcollection - detailed activities per day
       match /weeklySchedule/{weekId} {
+        allow read, create, update, delete: if request.auth.uid != null;
         match /days/{dayId} {
-          allow read: if isParent(familyId) || isNanny(familyId);
-          allow create, update: if isParent(familyId);
-          allow delete: if isParent(familyId);
+          allow read: if request.auth.uid != null;
+          allow create, update: if request.auth.uid != null;
+          allow delete: if request.auth.uid != null;
         }
       }
 
