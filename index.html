@@ -1761,12 +1761,12 @@
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3>Add Custody Pattern</h3>
-                <button onclick="closeCustodyPatternModal()" style="background: none; border: none; font-size: 1.5em; cursor: pointer;">&times;</button>
+                <button onclick="closeCustodyPatternModal()" aria-label="Close modal" style="background: none; border: none; font-size: 1.5em; cursor: pointer;">&times;</button>
             </div>
 
             <div class="form-group">
                 <label for="custodyPatternPerson">Child with:</label>
-                <select id="custodyPatternPerson" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <select id="custodyPatternPerson">
                     <option value="Daddy">Daddy</option>
                     <option value="Mommy">Mommy</option>
                     <option value="Granny">Granny</option>
@@ -1775,12 +1775,12 @@
 
             <div class="form-group">
                 <label for="custodyPatternStartDate">Starting Saturday:</label>
-                <input type="date" id="custodyPatternStartDate" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="date" id="custodyPatternStartDate" aria-describedby="custodyPatternStartDateError">
                 <small id="custodyPatternStartDateError" style="color: red; display: none;">Please select a Saturday</small>
             </div>
 
-            <div class="form-group">
-                <label>Recurrence:</label>
+            <fieldset class="form-group">
+                <legend>Recurrence:</legend>
                 <div style="margin-top: 8px;">
                     <label style="display: block; margin-bottom: 8px;">
                         <input type="radio" name="custodyPatternRecurrence" value="weekly"> Weekly (every 7 days)
@@ -1792,11 +1792,11 @@
                         <input type="radio" name="custodyPatternRecurrence" value="monthly"> Monthly (every 30 days)
                     </label>
                 </div>
-            </div>
+            </fieldset>
 
             <div class="form-group">
                 <label for="custodyPatternEndDate">End Date (optional, leave blank for ongoing):</label>
-                <input type="date" id="custodyPatternEndDate" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="date" id="custodyPatternEndDate">
             </div>
 
             <div style="margin-top: 20px; display: flex; gap: 10px;">
