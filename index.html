@@ -5364,14 +5364,14 @@
             }
 
             const batch = db.batch();
-            const eventsCollection = db.collection('families').doc(familyId).collection('events');
+            const eventsCollection = db.collection('families').doc(currentFamily).collection('events');
 
             for (const event of events) {
               const docRef = eventsCollection.doc();
               batch.set(docRef, {
                 ...event,
                 createdBy: auth.currentUser.uid,
-                createdByName: currentUserName,
+                createdByName: currentUser.displayName || 'Unknown',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 isArchived: false,
                 editHistory: []
