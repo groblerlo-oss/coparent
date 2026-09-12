@@ -1443,8 +1443,8 @@
             <!-- Calendar Tab -->
             <div id="calendar" class="tab-content active">
                 <h2>Family Calendar</h2>
-                <button class="btn btn-success" onclick="showAddEventModal()" style="max-width: 300px; margin: 20px 0;">+ Add Event</button>
-                <button class="btn btn-success" onclick="showCustodyPatternModal()" style="max-width: 300px; margin: 20px 0;">📅 Add Custody Pattern</button>
+                <button class="btn btn-success parent-only" id="addEventBtn" onclick="showAddEventModal()" style="max-width: 300px; margin: 20px 0;">+ Add Event</button>
+                <button class="btn btn-success parent-only" id="addCustodyPatternBtn" onclick="showCustodyPatternModal()" style="max-width: 300px; margin: 20px 0;">📅 Add Custody Pattern</button>
 
                 <!-- Month Navigation -->
                 <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
@@ -2865,9 +2865,9 @@
             editDateBtn.style.display = isParent ? 'block' : 'none';
             deleteEventBtn.style.display = isParent ? 'block' : 'none';
 
-            // Show swap button only for custody events (not for regular events)
+            // Show swap button only for custody events (not for regular events) - parents only
             const markSwappedBtn = document.getElementById('markSwappedBtn');
-            if (eventData.category === 'custody' && eventData.isCustodyPattern) {
+            if (eventData.category === 'custody' && eventData.isCustodyPattern && isParent) {
                 markSwappedBtn.style.display = 'inline-block';
             } else {
                 markSwappedBtn.style.display = 'none';
@@ -2909,6 +2909,13 @@
         }
 
         async function confirmSwap() {
+            // Nanny read-only check
+            if (isNannyUser) {
+                showNotification('You do not have permission to swap custody events. Please contact parents to make changes.', 'error');
+                closeSwapModal();
+                return;
+            }
+
             if (!swappedEventData) return;
 
             const newSaturdayStr = document.getElementById('swapNewDate').value;
@@ -3006,6 +3013,12 @@
         }
 
         async function editEventTime() {
+            // Nanny read-only check
+            if (isNannyUser) {
+                showNotification('You do not have permission to edit events. Please contact parents to make changes.', 'error');
+                return;
+            }
+
             const newTime = prompt('Enter new time (HH:MM):', window.currentEventDetails.time || '');
             if (newTime === null) return; // User cancelled
 
@@ -3057,6 +3070,12 @@
         }
 
         async function editEventDate() {
+            // Nanny read-only check
+            if (isNannyUser) {
+                showNotification('You do not have permission to edit events. Please contact parents to make changes.', 'error');
+                return;
+            }
+
             const currentDate = new Date(window.currentEventDetails.date);
             const defaultDate = currentDate.toISOString().split('T')[0];
             const newDateStr = prompt('Enter new date (YYYY-MM-DD):', defaultDate);
@@ -3105,6 +3124,12 @@
         }
 
         async function deleteEventFromModal() {
+            // Nanny read-only check
+            if (isNannyUser) {
+                showNotification('You do not have permission to delete events. Please contact parents to make changes.', 'error');
+                return;
+            }
+
             const confirmed = confirm(`Delete event "${window.currentEventDetails.title}"? This cannot be undone.`);
             if (!confirmed) return;
 
@@ -3170,6 +3195,13 @@
         }
 
         async function addEvent() {
+            // Nanny read-only check
+            if (isNannyUser) {
+                showNotification('You do not have permission to create events. Please contact parents to make changes.', 'error');
+                closeAddEventModal();
+                return;
+            }
+
             const title = document.getElementById('eventTitle').value.trim();
             const dateObj = document.getElementById('eventDate').valueAsDate;
             const time = document.getElementById('eventTime').value;
@@ -4523,7 +4555,6 @@
                     }
 
                     await batch.commit();
-                    console.log(`Initialized ${missingTypes.length} predefined activity types for family: ${currentFamily}`);
                 }
             } catch (error) {
                 console.error('Error initializing activity types:', error);
@@ -4761,7 +4792,6 @@
             addBtn.textContent = '+ Add Activity';
             addBtn.style.display = isNannyUser ? 'none' : 'block';
             addBtn.onclick = () => {
-                console.log('Add activity clicked for', dateStr);
                 startCreateActivity(dateStr, contentDiv);
             };
             contentDiv.appendChild(addBtn);
@@ -5245,6 +5275,13 @@
 
         // Save custody pattern (validate and create events)
         async function saveCustodyPattern() {
+          // Nanny read-only check
+          if (isNannyUser) {
+            showNotification('You do not have permission to create custody patterns. Please contact parents to make changes.', 'error');
+            closeCustodyPatternModal();
+            return;
+          }
+
           const person = document.getElementById('custodyPatternPerson').value;
           const startDateStr = document.getElementById('custodyPatternStartDate').value;
           const recurrence = document.getElementById('custodyPatternRecurrence').value;

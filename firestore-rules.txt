@@ -32,9 +32,9 @@ service cloud.firestore {
       // Events subcollection
       match /events/{eventId} {
         allow read: if request.auth.uid != null;
-        allow create: if request.auth.uid != null && (isParent(familyId) || isNanny(familyId));
-        allow update: if request.auth.uid != null && (isParent(familyId) || isNanny(familyId));
-        allow delete: if isParent(familyId) || request.auth.uid == resource.data.createdBy;
+        allow create: if isParent(familyId);
+        allow update: if isParent(familyId);
+        allow delete: if isParent(familyId);
       }
 
       // Documents subcollection
