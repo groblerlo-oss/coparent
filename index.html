@@ -2726,9 +2726,12 @@
                     const eventBadge = document.createElement('div');
 
                     // Determine badge class based on category and swap status
-                    let badgeClass = `event-badge ${event.category || 'general'}`;
-                    if (event.category === 'custody') {
-                        badgeClass = 'event-badge custody';
+                    let badgeClass = 'event-badge ';
+
+                    if (event.category === 'custody' && (event.swappedTo || event.swappedFrom)) {
+                        badgeClass += 'swapped';  // Apply swapped styling (orange) for swapped custody events
+                    } else {
+                        badgeClass += (event.category || 'general');
                     }
                     eventBadge.className = badgeClass;
 
