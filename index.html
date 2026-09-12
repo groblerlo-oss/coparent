@@ -393,14 +393,30 @@
         /* Monthly Calendar Grid Styles */
         .calendar-cell {
             background: white;
-            padding: 10px;
-            min-height: 120px;
+            padding: 8px;
+            min-height: 100px;
             border: 1px solid #eee;
             cursor: pointer;
             position: relative;
             overflow: hidden;
             border-radius: 4px;
             transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (max-width: 768px) {
+            .calendar-cell {
+                padding: 6px;
+                min-height: 80px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .calendar-cell {
+                padding: 4px;
+                min-height: 60px;
+            }
         }
 
         .calendar-cell:hover {
@@ -1456,14 +1472,14 @@
                 <!-- Monthly Calendar Grid -->
                 <div style="background: #ddd; padding: 2px; border-radius: 5px; margin-bottom: 20px;">
                     <!-- Day headers (Sun-Sat) -->
-                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 2px;">
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Sun</div>
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Mon</div>
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Tue</div>
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Wed</div>
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Thu</div>
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Fri</div>
-                        <div style="background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600;">Sat</div>
+                    <div class="calendar-header" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 2px;">
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Sun</div>
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Mon</div>
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Tue</div>
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Wed</div>
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Thu</div>
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Fri</div>
+                        <div style="background: #667eea; color: white; padding: 8px; text-align: center; font-weight: 600; font-size: 0.9em;">Sat</div>
                     </div>
 
                     <!-- Dates populated by JavaScript -->
