@@ -1966,18 +1966,18 @@
 
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Description</label>
-                    <input type="text" id="recurringExpenseDescription" placeholder="e.g., Monthly school fees">
+                    <label for="recurringDescription">Description</label>
+                    <input type="text" id="recurringDescription" placeholder="e.g., Monthly school fees">
                 </div>
 
                 <div class="form-group">
-                    <label>Amount (ZAR)</label>
-                    <input type="number" id="recurringExpenseAmount" placeholder="0.00" step="0.01" min="0">
+                    <label for="recurringAmount">Amount (ZAR)</label>
+                    <input type="number" id="recurringAmount" placeholder="0.00" step="0.01" min="0">
                 </div>
 
                 <div class="form-group">
-                    <label>Category</label>
-                    <select id="recurringExpenseCategory">
+                    <label for="recurringCategory">Category</label>
+                    <select id="recurringCategory">
                         <option value="">Select category...</option>
                         <option value="Food">Food</option>
                         <option value="Medical">Medical</option>
@@ -1991,38 +1991,38 @@
                     <legend>Paid By</legend>
                     <div style="margin-top: 8px;">
                         <label style="display: block; margin-bottom: 8px;">
-                            <input type="radio" name="recurringExpensePaidBy" value="mom"> Mom
+                            <input type="radio" name="recurringPaidBy" value="mom"> Mom
                         </label>
                         <label style="display: block; margin-bottom: 8px;">
-                            <input type="radio" name="recurringExpensePaidBy" value="dad"> Dad
+                            <input type="radio" name="recurringPaidBy" value="dad"> Dad
                         </label>
                         <label style="display: block;">
-                            <input type="radio" name="recurringExpensePaidBy" value="shared"> Shared
+                            <input type="radio" name="recurringPaidBy" value="shared"> Shared
                         </label>
                     </div>
                 </fieldset>
 
                 <div class="form-group">
-                    <label>Start Date</label>
-                    <input type="date" id="recurringExpenseStartDate">
+                    <label for="recurringStartDate">Start Date</label>
+                    <input type="date" id="recurringStartDate">
                 </div>
 
                 <div class="form-group">
-                    <label>End Date (optional)</label>
-                    <input type="date" id="recurringExpenseEndDate">
+                    <label for="recurringEndDate">End Date (optional)</label>
+                    <input type="date" id="recurringEndDate">
                 </div>
 
                 <fieldset class="form-group">
                     <legend>Frequency</legend>
                     <div style="margin-top: 8px;">
                         <label style="display: block; margin-bottom: 8px;">
-                            <input type="radio" name="recurringExpenseFrequency" value="weekly"> Weekly
+                            <input type="radio" name="recurringFrequency" value="weekly"> Weekly
                         </label>
                         <label style="display: block; margin-bottom: 8px;">
-                            <input type="radio" name="recurringExpenseFrequency" value="biweekly"> Bi-weekly (every 2 weeks)
+                            <input type="radio" name="recurringFrequency" value="biweekly"> Bi-weekly (every 2 weeks)
                         </label>
                         <label style="display: block;">
-                            <input type="radio" name="recurringExpenseFrequency" value="monthly"> Monthly
+                            <input type="radio" name="recurringFrequency" value="monthly"> Monthly
                         </label>
                     </div>
                 </fieldset>
@@ -5495,29 +5495,29 @@
         function showRecurringExpenseModal() {
             document.getElementById('recurringExpenseModal').classList.remove('hidden');
             // Set today's date as default start date
-            document.getElementById('recurringExpenseStartDate').valueAsDate = new Date();
+            document.getElementById('recurringStartDate').valueAsDate = new Date();
         }
 
         function closeRecurringExpenseModal() {
             document.getElementById('recurringExpenseModal').classList.add('hidden');
             // Clear form
-            document.getElementById('recurringExpenseDescription').value = '';
-            document.getElementById('recurringExpenseAmount').value = '';
-            document.getElementById('recurringExpenseCategory').value = '';
-            document.querySelectorAll('input[name="recurringExpensePaidBy"]').forEach(radio => radio.checked = false);
-            document.getElementById('recurringExpenseStartDate').value = '';
-            document.getElementById('recurringExpenseEndDate').value = '';
-            document.querySelectorAll('input[name="recurringExpenseFrequency"]').forEach(radio => radio.checked = false);
+            document.getElementById('recurringDescription').value = '';
+            document.getElementById('recurringAmount').value = '';
+            document.getElementById('recurringCategory').value = '';
+            document.querySelectorAll('input[name="recurringPaidBy"]').forEach(radio => radio.checked = false);
+            document.getElementById('recurringStartDate').value = '';
+            document.getElementById('recurringEndDate').value = '';
+            document.querySelectorAll('input[name="recurringFrequency"]').forEach(radio => radio.checked = false);
         }
 
         async function saveRecurringExpense() {
-            const description = document.getElementById('recurringExpenseDescription').value.trim();
-            const amount = parseFloat(document.getElementById('recurringExpenseAmount').value);
-            const category = document.getElementById('recurringExpenseCategory').value;
-            const paidBy = document.querySelector('input[name="recurringExpensePaidBy"]:checked')?.value;
-            const startDate = document.getElementById('recurringExpenseStartDate').value;
-            const endDate = document.getElementById('recurringExpenseEndDate').value || null;
-            const frequency = document.querySelector('input[name="recurringExpenseFrequency"]:checked')?.value;
+            const description = document.getElementById('recurringDescription').value.trim();
+            const amount = parseFloat(document.getElementById('recurringAmount').value);
+            const category = document.getElementById('recurringCategory').value;
+            const paidBy = document.querySelector('input[name="recurringPaidBy"]:checked')?.value;
+            const startDate = document.getElementById('recurringStartDate').value;
+            const endDate = document.getElementById('recurringEndDate').value || null;
+            const frequency = document.querySelector('input[name="recurringFrequency"]:checked')?.value;
 
             // Validation
             if (!description || !amount || !category || !paidBy || !startDate || !frequency) {
