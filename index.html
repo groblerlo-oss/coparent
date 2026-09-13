@@ -2018,20 +2018,13 @@
                     </select>
                 </div>
 
-                <fieldset class="form-group">
-                    <legend>Paid By</legend>
-                    <div style="margin-top: 8px;">
-                        <label style="display: block; margin-bottom: 8px;">
-                            <input type="radio" name="recurringPaidBy" value="mom"> Mom
-                        </label>
-                        <label style="display: block; margin-bottom: 8px;">
-                            <input type="radio" name="recurringPaidBy" value="dad"> Dad
-                        </label>
-                        <label style="display: block;">
-                            <input type="radio" name="recurringPaidBy" value="shared"> Shared
-                        </label>
-                    </div>
-                </fieldset>
+                <div class="form-group">
+                    <label for="recurringPaidBy">Paid By</label>
+                    <select id="recurringPaidBy">
+                        <option value="">Select who pays...</option>
+                        <option value="shared">Shared (50/50)</option>
+                    </select>
+                </div>
 
                 <div class="form-group">
                     <label for="recurringStartDate">Start Date</label>
@@ -5719,9 +5712,25 @@
         }
 
         // Recurring Expense Modal Functions
-        function showRecurringExpenseModal() {
+        async function showRecurringExpenseModal() {
             document.getElementById('recurringExpenseModal').classList.remove('hidden');
             document.getElementById('recurringStartDate').valueAsDate = new Date();
+
+            if (currentFamily) {
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                const parents = familyDoc.data().parents || [];
+                const parentSelect = document.getElementById('recurringPaidBy');
+                parentSelect.innerHTML = '<option value="">Select who pays...</option><option value="shared">Shared (50/50)</option>';
+
+                parents.forEach(parent => {
+                    if (parent.name) {
+                        const opt = document.createElement('option');
+                        opt.value = parent.name;
+                        opt.textContent = parent.name;
+                        parentSelect.appendChild(opt);
+                    }
+                });
+            }
         }
 
         function closeRecurringExpenseModal() {
@@ -5735,7 +5744,7 @@
             document.getElementById('recurringCategory').value = 'school';
             document.getElementById('recurringStartDate').value = '';
             document.getElementById('recurringEndDate').value = '';
-            document.querySelector('input[name="recurringPaidBy"][value="shared"]').checked = true;
+            document.getElementById('recurringPaidBy').value = 'shared';
             document.querySelector('input[name="recurringFrequency"][value="monthly"]').checked = true;
         }
 
@@ -5744,7 +5753,7 @@
                 description: document.getElementById('recurringDescription').value,
                 amount: parseFloat(document.getElementById('recurringAmount').value),
                 category: document.getElementById('recurringCategory').value,
-                paidBy: document.querySelector('input[name="recurringPaidBy"]:checked').value,
+                paidBy: document.getElementById('recurringPaidBy').value,
                 startDate: document.getElementById('recurringStartDate').value,
                 endDate: document.getElementById('recurringEndDate').value || null,
                 frequency: document.querySelector('input[name="recurringFrequency"]:checked').value
