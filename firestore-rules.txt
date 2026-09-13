@@ -26,7 +26,8 @@ service cloud.firestore {
       // Members subcollection
       match /members/{userId} {
         allow read: if request.auth.uid != null;
-        allow write: if isParent(familyId);
+        allow write: if isParent(familyId) || request.auth.uid == resource.data.userId;
+        allow create: if request.auth.uid == userId || request.auth.uid == get(/databases/$(database)/documents/families/$(familyId)).data.createdBy;
       }
 
       // Events subcollection
