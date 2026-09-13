@@ -71,6 +71,13 @@ service cloud.firestore {
         allow delete: if isParent(familyId);
       }
 
+      // Templates subcollection - recurring expense templates
+      match /templates/{templateId} {
+        allow read: if request.auth.uid != null;
+        allow create, update: if request.auth.uid != null;
+        allow delete: if request.auth.uid == resource.data.createdBy;
+      }
+
       // Nannies subcollection
       match /nannies/{nannyId} {
         allow read: if isParent(familyId) || request.auth.uid == nannyId;
