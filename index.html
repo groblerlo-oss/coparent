@@ -1606,6 +1606,28 @@
                         <button id="recordPaymentFormBtn" onclick="showPaymentForm()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; width: 100%;">Record Payment</button>
                     </div>
 
+                    <!-- Recurring Expense Dashboard Summary (Task 4) -->
+                    <div class="settlement-card" style="margin-top: 20px; background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; border-radius: 4px;">
+                        <h4 style="margin-top: 0;">📊 Monthly Recurring Expenses</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px;">
+                            <div>
+                                <div style="font-size: 0.85em; color: #666;">Mom's Recurring</div>
+                                <div style="font-size: 1.5em; font-weight: 600; color: #d32f2f;" id="momRecurring">R0</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.85em; color: #666;">Dad's Recurring</div>
+                                <div style="font-size: 1.5em; font-weight: 600; color: #1976d2;" id="dadRecurring">R0</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.85em; color: #666;">Shared Recurring</div>
+                                <div style="font-size: 1.5em; font-weight: 600; color: #7b1fa2;" id="sharedRecurring">R0</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #c8e6c9;">
+                            <div style="font-size: 0.9em;">Total Monthly: <span style="font-weight: 600; color: #1b5e20;" id="totalRecurring">R0</span></div>
+                        </div>
+                    </div>
+
                     <!-- Payment History (Expandable) -->
                     <div style="margin-top: 15px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
                         <button onclick="togglePaymentHistory(this)"
@@ -4085,6 +4107,10 @@
                 // Show the settlement summary
                 document.getElementById('settlementSummary').classList.remove('hidden');
                 document.getElementById('settlementSummary').style.display = 'block';
+
+                // Update recurring expense summary (Task 4)
+                const recurringSummary = calculateRecurringSummary(expenses);
+                updateRecurringSummaryDisplay(recurringSummary);
             } catch (error) {
                 expensesList.innerHTML = `<p style="color: #dc3545;">Error loading expenses: ${error.message}</p>`;
             }
@@ -4104,6 +4130,30 @@
             } catch (error) {
                 showNotification(error.message, 'error');
             }
+        }
+
+        function calculateRecurringSummary(expenses) {
+            const recurring = expenses.filter(e => e.isRecurring);
+            const summary = { momTotal: 0, dadTotal: 0, sharedTotal: 0 };
+            recurring.forEach(exp => {
+                if (exp.paidBy === 'mom') summary.momTotal += exp.amount;
+                else if (exp.paidBy === 'dad') summary.dadTotal += exp.amount;
+                else if (exp.paidBy === 'shared') summary.sharedTotal += exp.amount;
+            });
+            return summary;
+        }
+
+        function updateRecurringSummaryDisplay(summary) {
+            const momEl = document.getElementById('momRecurring');
+            const dadEl = document.getElementById('dadRecurring');
+            const sharedEl = document.getElementById('sharedRecurring');
+            const totalEl = document.getElementById('totalRecurring');
+
+            momEl.textContent = `R${summary.momTotal.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            dadEl.textContent = `R${summary.dadTotal.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            sharedEl.textContent = `R${summary.sharedTotal.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            const total = summary.momTotal + summary.dadTotal + summary.sharedTotal;
+            totalEl.textContent = `R${total.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
         }
 
         async function loadSettlement(expenses) {
