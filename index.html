@@ -4009,8 +4009,6 @@
                     const expense = doc.data();
                     expenses.push(expense);
 
-                    if (expense.isRecurring) return;
-
                     const row = tbody.insertRow();
                     row.style.cssText = 'border-bottom: 1px solid #e0e0e0;';
 
