@@ -1628,6 +1628,15 @@
                         </div>
                     </div>
 
+                    <!-- Manage Recurring Expenses -->
+                    <div style="margin-top: 20px; background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 4px;">
+                        <h4 style="margin-top: 0;">⚙️ Manage Recurring Expenses</h4>
+                        <div id="recurringTemplatesList" style="margin-top: 10px;">
+                            <!-- Templates listed here -->
+                        </div>
+                        <div id="noRecurringMessage" style="color: #666; font-size: 0.9em;">No recurring expenses set up yet.</div>
+                    </div>
+
                     <!-- Payment History (Expandable) -->
                     <div style="margin-top: 15px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
                         <button onclick="togglePaymentHistory(this)"
@@ -4111,6 +4120,9 @@
                 // Update recurring expense summary (Task 4)
                 const recurringSummary = calculateRecurringSummary(expenses);
                 updateRecurringSummaryDisplay(recurringSummary);
+
+                // Load recurring templates for management
+                await loadRecurringTemplates();
             } catch (error) {
                 expensesList.innerHTML = `<p style="color: #dc3545;">Error loading expenses: ${error.message}</p>`;
             }
@@ -4154,6 +4166,87 @@
             sharedEl.textContent = `R${summary.sharedTotal.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             const total = summary.momTotal + summary.dadTotal + summary.sharedTotal;
             totalEl.textContent = `R${total.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        async function loadRecurringTemplates() {
+            if (!currentFamily) return;
+            const container = document.getElementById('recurringTemplatesList');
+            const noMsg = document.getElementById('noRecurringMessage');
+
+            try {
+                const templatesSnapshot = await db.collection('families').doc(currentFamily)
+                    .collection('templates')
+                    .get();
+
+                if (templatesSnapshot.empty) {
+                    container.innerHTML = '';
+                    noMsg.style.display = 'block';
+                    return;
+                }
+
+                noMsg.style.display = 'none';
+                container.innerHTML = '';
+
+                templatesSnapshot.forEach(doc => {
+                    const template = doc.data();
+                    const item = document.createElement('div');
+                    item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #ffe0b2;';
+
+                    const info = document.createElement('div');
+                    const desc = document.createElement('div');
+                    desc.textContent = `${template.description} - R${template.amount.toFixed(2)} (${template.frequency}, ${template.paidBy})`;
+                    desc.style.cssText = 'font-weight: 500; color: #333;';
+
+                    const dates = document.createElement('div');
+                    dates.textContent = `From ${template.startDate}${template.endDate ? ' to ' + template.endDate : ' (ongoing)'}`;
+                    dates.style.cssText = 'font-size: 0.85em; color: #666; margin-top: 4px;';
+
+                    info.appendChild(desc);
+                    info.appendChild(dates);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.style.cssText = 'padding: 6px 12px; background: #d32f2f; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85em;';
+                    deleteBtn.onclick = () => deleteRecurringTemplate(doc.id, template.description);
+
+                    item.appendChild(info);
+                    item.appendChild(deleteBtn);
+                    container.appendChild(item);
+                });
+
+            } catch (error) {
+                console.error('Error loading templates:', error);
+                container.innerHTML = `<div style="color: #d32f2f; font-size: 0.9em;">Error loading templates</div>`;
+            }
+        }
+
+        async function deleteRecurringTemplate(templateId, description) {
+            if (!confirm(`Delete recurring template "${description}"? This will also delete all future instances of this expense.`)) return;
+
+            try {
+                // Delete the template
+                await db.collection('families').doc(currentFamily)
+                    .collection('templates')
+                    .doc(templateId)
+                    .delete();
+
+                // Delete all associated expenses
+                const expensesSnapshot = await db.collection('families').doc(currentFamily)
+                    .collection('expenses')
+                    .where('templateId', '==', templateId)
+                    .get();
+
+                const batch = db.batch();
+                expensesSnapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+
+                showNotification(`✅ Recurring template "${description}" deleted`, 'success');
+                loadExpenses();
+            } catch (error) {
+                showNotification(`❌ Error: ${error.message}`, 'error');
+            }
         }
 
         async function loadSettlement(expenses) {
