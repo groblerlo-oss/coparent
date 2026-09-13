@@ -4058,6 +4058,9 @@
 
                     const statusEmoji = remaining <= 0 ? '✅' : '⏳';
 
+                    console.log('Settlement totalPaid:', settlement.totalPaid);
+                    console.log('Settlement balances:', settlement.balances);
+
                     let breakdownHTML = `<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #555;">`;
                     breakdownHTML += `<div style="margin-bottom: 6px;"><strong>Breakdown:</strong></div>`;
                     Object.entries(settlement.totalPaid).forEach(([person, paid]) => {
