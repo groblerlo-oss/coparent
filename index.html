@@ -4075,8 +4075,6 @@
 
                     document.getElementById('settlementText').innerHTML = settlementText + breakdownHTML;
 
-                    const statusEmoji = remaining <= 0 ? '✅' : '⏳';
-
                     document.getElementById('settlementProgress').innerHTML = `
                         <div style="margin-bottom: 10px; font-size: 0.95em;">
                             <strong>${statusEmoji} Progress:</strong> Paid ${formatZAR(totalPaid)} of ${formatZAR(settlement.settlement.amount)}
