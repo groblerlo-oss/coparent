@@ -2161,34 +2161,34 @@
           const expenses = [];
           const startDate = parseISODate(template.startDate);
           const endDate = template.endDate ? parseISODate(template.endDate) : null;
+          const today = new Date();
 
-          const intervalMap = { weekly: 7, biweekly: 14, monthly: 30 };
-          const interval = intervalMap[template.frequency] || 30;
+          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+          const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-          let currentDate = new Date(startDate);
-          const maxEndDate = new Date();
-          maxEndDate.setMonth(maxEndDate.getMonth() + 3);
+          if (startDate > lastDay || (endDate && startDate > endDate)) return expenses;
 
-          while (currentDate <= maxEndDate) {
-            if (endDate && currentDate > endDate) break;
+          let expenseDate = new Date(startDate);
+          if (expenseDate < firstDay) {
+            expenseDate = new Date(firstDay);
+          }
 
+          if (expenseDate <= lastDay && (!endDate || expenseDate <= endDate)) {
             expenses.push({
               description: template.description,
-              date: formatDateToISO(currentDate),
+              date: formatDateToISO(expenseDate),
               amount: template.amount,
               category: template.category,
               paidBy: template.paidBy,
               isRecurring: true,
               templateId: template.id,
-              generatedMonth: getMonthKey(currentDate),
+              generatedMonth: getMonthKey(expenseDate),
               createdBy: auth.currentUser.uid,
               createdByName: auth.currentUser.email || 'Unknown User',
               createdAt: new Date(),
               isArchived: false,
               paid: false
             });
-
-            currentDate.setDate(currentDate.getDate() + interval);
           }
 
           return expenses;
