@@ -4058,6 +4058,25 @@
 
                     const statusEmoji = remaining <= 0 ? '✅' : '⏳';
 
+                    let breakdownHTML = `<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #555;">`;
+                    breakdownHTML += `<div style="margin-bottom: 6px;"><strong>Breakdown:</strong></div>`;
+                    Object.entries(settlement.totalPaid).forEach(([person, paid]) => {
+                        breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px;">
+                            ${person} paid: <strong>${formatZAR(paid)}</strong>
+                        </div>`;
+                    });
+                    breakdownHTML += `<div style="margin: 6px 0; padding-top: 6px; border-top: 1px solid #e8e8e8; padding-left: 8px;">
+                        Total: <strong>${formatZAR(settlement.totalExpenses)}</strong>
+                    </div>`;
+                    breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #666;">
+                        Fair share each: ${formatZAR(settlement.fairShare)}
+                    </div>`;
+                    breakdownHTML += `</div>`;
+
+                    document.getElementById('settlementText').innerHTML = settlementText + breakdownHTML;
+
+                    const statusEmoji = remaining <= 0 ? '✅' : '⏳';
+
                     document.getElementById('settlementProgress').innerHTML = `
                         <div style="margin-bottom: 10px; font-size: 0.95em;">
                             <strong>${statusEmoji} Progress:</strong> Paid ${formatZAR(totalPaid)} of ${formatZAR(settlement.settlement.amount)}
