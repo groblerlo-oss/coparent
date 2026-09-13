@@ -1,0 +1,2370 @@
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyColUdML5MTQr6O_R1N-lcIIeQJoIwkcdI",
+            authDomain: "coparent-app-5c99f.firebaseapp.com",
+            projectId: "coparent-app-5c99f",
+            storageBucket: "coparent-app-5c99f.firebasestorage.app",
+            messagingSenderId: "979607166451",
+            appId: "1:979607166451:web:12fd14f1a57ecf01350686"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Current State
+        let currentUser = null;
+        let currentFamily = null;
+        let userRole = null;
+
+        // Family setup wizard state
+        let wizardState = {
+            familyName: '',
+            childrenNames: [],
+            parents: []
+        };
+
+        /*
+        EVENT SCHEMA UPDATES (stored in families/{familyId}/events/{eventId}):
+        - isArchived: boolean (default false) - set when eventDate + 5 days < today
+        - archivedDate: string (ISO date) - calculated as eventDate + 5 days
+        - recurrence: object {
+            enabled: boolean,
+            pattern: "weekly",
+            daysOfWeek: ["Monday", "Thursday", ...],
+            endDate: null or ISO date string
+          }
+        - editHistory: array [
+            { changedBy: uid, changedByName: string, changedAt: timestamp, field: string, oldValue: any, newValue: any },
+            ...
+          ]
+        - createdByName: string - display name of creator
+
+        SCHEDULE SCHEMA (families/{familyId}/schedule document):
+        - weeklyPattern: array [
+            { day: "Monday", parent: "Louis", timeStart: "00:00", timeEnd: "23:59" },
+            ...
+          ]
+        - startDate: ISO date string
+        - exceptions: array [
+            { date: ISO date, parent: name, reason?: string },
+            ...
+          ]
+        - createdAt, updatedAt: timestamps
+        */
+
+        function goToStep2() {
+            const familyName = document.getElementById('familyName').value.trim();
+            const childrenText = document.getElementById('childrenNames').value.trim();
+
+            if (!familyName) {
+                showNotification('Please enter a family name', 'error');
+                return;
+            }
+
+            const children = childrenText.split('\n').filter(name => name.trim()).map(name => name.trim());
+            if (children.length === 0) {
+                showNotification('Please enter at least one child\'s name', 'error');
+                return;
+            }
+
+            wizardState.familyName = familyName;
+            wizardState.childrenNames = children;
+
+            if (wizardState.parents.length === 0) {
+                wizardState.parents.push({name: currentUser.displayName || 'Parent 1', split: 50});
+                wizardState.parents.push({name: 'Parent 2', split: 50});
+            }
+
+            renderParentInputs();
+            document.getElementById('familySetupScreen').classList.add('hidden');
+            document.getElementById('familySetupStep2').classList.remove('hidden');
+            document.getElementById('familySetupStep2').style.display = 'block';
+        }
+
+        function goToStep3() {
+            const parents = [];
+            const parentInputs = document.querySelectorAll('.parent-input-group');
+
+            let totalSplit = 0;
+            let hasError = false;
+
+            parentInputs.forEach((group, index) => {
+                const nameInput = group.querySelector('input:nth-child(1)');
+                const splitInput = group.querySelector('input:nth-child(2)');
+
+                const name = nameInput.value.trim();
+                const split = parseFloat(splitInput.value) || 0;
+
+                if (!name) {
+                    showNotification('Please enter all parent names', 'error');
+                    hasError = true;
+                    return;
+                }
+
+                if (split <= 0 || split > 100) {
+                    showNotification('Split percentages must be between 0 and 100', 'error');
+                    hasError = true;
+                    return;
+                }
+
+                parents.push({name, split});
+                totalSplit += split;
+            });
+
+            if (hasError) return;
+
+            if (Math.abs(totalSplit - 100) > 0.01) {
+                document.getElementById('splitErrorMessage').textContent = `Percentages total ${totalSplit.toFixed(1)}% (must be 100%)`;
+                document.getElementById('splitErrorMessage').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('splitErrorMessage').style.display = 'none';
+            wizardState.parents = parents;
+
+            document.getElementById('reviewFamilyName').textContent = wizardState.familyName;
+            document.getElementById('reviewChildren').textContent = wizardState.childrenNames.join(', ');
+
+            const reviewParents = document.getElementById('reviewParents');
+            reviewParents.innerHTML = wizardState.parents.map(p => `<p>• ${p.name}: ${p.split}%</p>`).join('');
+
+            document.getElementById('familySetupStep2').classList.add('hidden');
+            document.getElementById('familySetupStep3').classList.remove('hidden');
+            document.getElementById('familySetupStep3').style.display = 'block';
+        }
+
+        function goBackToStep1() {
+            document.getElementById('familySetupStep2').classList.add('hidden');
+            document.getElementById('familySetupStep2').style.display = 'none';
+            document.getElementById('familySetupScreen').classList.remove('hidden');
+        }
+
+        function goBackToStep2() {
+            document.getElementById('familySetupStep3').classList.add('hidden');
+            document.getElementById('familySetupStep3').style.display = 'none';
+            document.getElementById('familySetupStep2').classList.remove('hidden');
+            document.getElementById('familySetupStep2').style.display = 'block';
+        }
+
+        function renderParentInputs() {
+            const container = document.getElementById('parentsContainer');
+            container.innerHTML = '';
+
+            wizardState.parents.forEach((parent, index) => {
+                const group = document.createElement('div');
+                group.className = 'parent-input-group';
+                group.innerHTML = `
+                    <input type="text" value="${parent.name}" placeholder="Parent name">
+                    <input type="number" value="${parent.split}" min="0" max="100" step="0.1" placeholder="%">
+                    <button class="parent-remove-btn" onclick="removeParentInput(${index})">Remove</button>
+                `;
+                container.appendChild(group);
+            });
+        }
+
+        function addParentInput() {
+            wizardState.parents.push({name: '', split: 0});
+            renderParentInputs();
+        }
+
+        function removeParentInput(index) {
+            if (wizardState.parents.length > 1) {
+                wizardState.parents.splice(index, 1);
+                renderParentInputs();
+            } else {
+                showNotification('At least one parent is required', 'error');
+            }
+        }
+
+        // Initialize App
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadUserData();
+            } else {
+                showAuthScreen();
+            }
+        });
+
+        function showAuthScreen() {
+            document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('familySetupScreen').classList.add('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+        }
+
+        function switchAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (tab === 'login') {
+                document.getElementById('loginForm').classList.remove('hidden');
+                document.getElementById('registerForm').classList.add('hidden');
+            } else {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('registerForm').classList.remove('hidden');
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                showNotification('Login successful!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                const result = await auth.signInWithPopup(provider);
+
+                // Create user profile if first time
+                const userDoc = await db.collection('users').doc(result.user.uid).get();
+                if (!userDoc.exists) {
+                    await db.collection('users').doc(result.user.uid).set({
+                        name: result.user.displayName,
+                        email: result.user.email,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+
+                showNotification('Login successful!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loginWithApple() {
+            const provider = new firebase.auth.OAuthProvider('apple.com');
+            provider.addScope('email');
+            provider.addScope('name');
+
+            try {
+                const result = await auth.signInWithPopup(provider);
+
+                // Create user profile if first time
+                const userDoc = await db.collection('users').doc(result.user.uid).get();
+                if (!userDoc.exists) {
+                    await db.collection('users').doc(result.user.uid).set({
+                        name: result.user.displayName || 'Apple User',
+                        email: result.user.email,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+
+                showNotification('Login successful!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function register() {
+            const name = document.getElementById('registerName').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const inviteCode = document.getElementById('inviteCode').value.trim();
+
+            if (!name || !email || !password) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showNotification('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            try {
+                // Create user account
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+
+                // Create user profile
+                await db.collection('users').doc(user.uid).set({
+                    name: name,
+                    email: email,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Check if invited
+                if (inviteCode) {
+                    await joinFamilyWithCode(inviteCode, user.uid);
+                }
+
+                showNotification('Registration successful!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function joinFamilyWithCode(code, userId) {
+            const inviteDoc = await db.collection('invitations').doc(code).get();
+
+            if (!inviteDoc.exists) {
+                showNotification('Invalid invitation code', 'error');
+                return;
+            }
+
+            const invite = inviteDoc.data();
+            const familyId = invite.familyId;
+            const role = invite.role;
+
+            // Add user to family
+            await db.collection('families').doc(familyId).collection('members').doc(userId).set({
+                userId: userId,
+                role: role,
+                joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Mark invitation as used
+            await db.collection('invitations').doc(code).update({
+                used: true,
+                usedBy: userId,
+                usedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        async function loadUserData() {
+            try {
+                const familiesSnapshot = await db.collection('families').get();
+                const families = [];
+
+                for (const familyDoc of familiesSnapshot.docs) {
+                    try {
+                        const memberDoc = await db.collection('families')
+                            .doc(familyDoc.id)
+                            .collection('members')
+                            .doc(currentUser.uid)
+                            .get();
+
+                        if (memberDoc.exists) {
+                            families.push({
+                                id: familyDoc.id,
+                                ...familyDoc.data(),
+                                role: memberDoc.data().role
+                            });
+                        }
+                    } catch (e) {
+                        // Skip families we can't access
+                    }
+                }
+
+                if (families.length > 0) {
+                    currentFamily = families[0].id;
+                    userRole = families[0].role;
+                    loadFamilyData(families);
+                    showMainApp();
+                } else {
+                    showFamilySetup();
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                showFamilySetup();
+            }
+        }
+
+        function showFamilySetup() {
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('familySetupScreen').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+        }
+
+        async function createFamily() {
+            goToStep2();
+        }
+
+        async function createFamilyFinal() {
+            const familyName = wizardState.familyName;
+            const children = wizardState.childrenNames;
+            const parents = wizardState.parents;
+
+            if (!familyName || children.length === 0 || parents.length === 0) {
+                showNotification('Invalid family setup', 'error');
+                return;
+            }
+
+            try {
+                const familyRef = await db.collection('families').add({
+                    name: familyName,
+                    children: children,
+                    parents: parents,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                await familyRef.collection('members').doc(currentUser.uid).set({
+                    userId: currentUser.uid,
+                    role: 'parent',
+                    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Family created successfully!', 'success');
+
+                wizardState = {
+                    familyName: '',
+                    childrenNames: [],
+                    parents: []
+                };
+
+                await loadUserData();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function loadFamilyData(families) {
+            const dropdown = document.getElementById('familyDropdown');
+            dropdown.innerHTML = '';
+
+            families.forEach(family => {
+                const option = document.createElement('option');
+                option.value = family.id;
+                option.textContent = family.name;
+                option.selected = family.id === currentFamily;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function showMainApp() {
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('familySetupScreen').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            // Show/hide based on role
+            if (userRole === 'helper') {
+                document.querySelectorAll('.parent-only').forEach(el => el.classList.add('hidden'));
+                switchTab('calendar');
+            } else {
+                document.querySelectorAll('.parent-only').forEach(el => el.classList.remove('hidden'));
+            }
+
+            loadCalendarEvents();
+            loadExpenses();
+            if (userRole === 'parent') {
+                loadFamilyMembers();
+                loadDocuments();
+                loadParentSplitsInSettings();
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+
+            // Load data when switching tabs
+            if (tabName === 'calendar') {
+                // Initialize calendar filter buttons if needed
+                const filterType = localStorage.getItem('calendarFilter') || 'active';
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    if (btn.textContent.toLowerCase().includes(filterType === 'active' ? 'active' : filterType === 'all' ? 'all' : 'past')) {
+                        btn.classList.add('active');
+                    }
+                });
+                // Render the monthly calendar
+                renderMonthlyCalendar();
+            }
+            if (tabName === 'documents' && userRole === 'parent') {
+                loadDocuments();
+            }
+            if (tabName === 'expenses' && userRole === 'parent') {
+                document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+                loadExpenses();
+            }
+            if (tabName === 'settings' && userRole === 'parent') {
+                loadParentSplitsInSettings();
+            }
+        }
+
+        async function inviteCoParent() {
+            const email = document.getElementById('coParentEmail').value.trim();
+            if (!email) {
+                showNotification('Please enter an email address', 'error');
+                return;
+            }
+
+            await sendInvitation(email, 'parent', 'Co-Parent');
+        }
+
+        async function inviteHelper() {
+            const email = document.getElementById('helperEmail').value.trim();
+            const name = document.getElementById('helperName').value.trim();
+
+            if (!email || !name) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+
+            await sendInvitation(email, 'helper', name);
+        }
+
+        async function sendInvitation(email, role, name) {
+            try {
+                // Generate invitation code
+                const code = 'INV-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+                // Save invitation
+                await db.collection('invitations').doc(code).set({
+                    familyId: currentFamily,
+                    email: email,
+                    role: role,
+                    invitedBy: currentUser.uid,
+                    invitedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    used: false
+                });
+
+                showNotification(`Invitation sent! Share this code: ${code}`, 'success');
+                document.getElementById('coParentEmail').value = '';
+                document.getElementById('helperEmail').value = '';
+                document.getElementById('helperName').value = '';
+
+                // In production, you'd send this via email
+                alert(`Invitation Code: ${code}\n\nShare this code with ${email}. They can use it when registering.`);
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loadFamilyMembers() {
+            const membersSnapshot = await db.collection('families').doc(currentFamily).collection('members').get();
+            const membersList = document.getElementById('membersList');
+            membersList.innerHTML = '';
+
+            for (const doc of membersSnapshot.docs) {
+                const memberData = doc.data();
+                const userDoc = await db.collection('users').doc(doc.id).get();
+                const userData = userDoc.data();
+
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'invite-item';
+                memberDiv.innerHTML = `
+                    <div>
+                        <strong>${userData?.name || 'Unknown'}</strong><br>
+                        <small>${userData?.email || ''}</small>
+                    </div>
+                    <span class="role-badge ${memberData.role}">${memberData.role}</span>
+                `;
+                membersList.appendChild(memberDiv);
+            }
+        }
+
+        // Calendar Functions
+        function expandRecurringEvents(events) {
+            // Expand recurring events into individual instances
+            const expandedEvents = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const ninetyDaysFromNow = new Date(today);
+            ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+
+            events.forEach(event => {
+                if (event.recurrence && event.recurrence.enabled && event.recurrence.daysOfWeek && event.recurrence.daysOfWeek.length > 0) {
+                    // This is a recurring event - expand it
+                    const baseDate = new Date(event.date + 'T00:00:00');
+                    const endDate = event.recurrence.endDate ? new Date(event.recurrence.endDate + 'T23:59:59') : ninetyDaysFromNow;
+                    let currentDate = new Date(baseDate);
+
+                    while (currentDate <= endDate && currentDate <= ninetyDaysFromNow) {
+                        const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+                        if (event.recurrence.daysOfWeek.includes(dayName)) {
+                            const expandedEvent = {
+                                ...event,
+                                date: currentDate.toISOString().split('T')[0],
+                                expandedFromId: event.id || 'recurring'
+                            };
+                            // Recalculate archive date for expanded instance
+                            const archiveDate = new Date(currentDate);
+                            archiveDate.setDate(archiveDate.getDate() + 5);
+                            expandedEvent.archivedDate = archiveDate.toISOString().split('T')[0];
+                            expandedEvents.push(expandedEvent);
+                        }
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                } else {
+                    // Non-recurring event
+                    expandedEvents.push(event);
+                }
+            });
+
+            return expandedEvents;
+        }
+
+        function calculateArchiveStatus(events) {
+            // Calculate isArchived for each event based on current date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            return events.map(event => {
+                if (event.archivedDate) {
+                    const archivedDate = new Date(event.archivedDate + 'T00:00:00');
+                    event.isArchived = today > archivedDate;
+                }
+                return event;
+            });
+        }
+
+        function filterCalendarEvents(events, filterType) {
+            // Filter events based on filter type
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            return events.filter(event => {
+                if (filterType === 'active') {
+                    return !event.isArchived;
+                } else if (filterType === 'past') {
+                    return event.isArchived;
+                } else {
+                    // 'all'
+                    return true;
+                }
+            });
+        }
+
+        function setCalendarFilter(filterType) {
+            // Save filter state to localStorage
+            localStorage.setItem('calendarFilter', filterType);
+
+            // Update UI
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Reload calendar with new filter
+            renderMonthlyCalendar();
+        }
+
+        // Monthly Calendar Variables
+        let currentDisplayDate = new Date();
+
+        function previousMonth() {
+            currentDisplayDate.setMonth(currentDisplayDate.getMonth() - 1);
+            renderMonthlyCalendar();
+        }
+
+        function nextMonth() {
+            currentDisplayDate.setMonth(currentDisplayDate.getMonth() + 1);
+            renderMonthlyCalendar();
+        }
+
+        async function renderMonthlyCalendar() {
+            const year = currentDisplayDate.getFullYear();
+            const month = currentDisplayDate.getMonth();
+
+            // Update header
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('monthDisplay').textContent = `${monthNames[month]} ${year}`;
+
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+            // Load events for the month
+            let monthEvents = {};
+            if (currentFamily) {
+                const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+                const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+                try {
+                    const eventsSnap = await db.collection('families').doc(currentFamily)
+                        .collection('events')
+                        .orderBy('date', 'asc')
+                        .get();
+
+                    let events = eventsSnap.docs.map(doc => ({
+                        ...doc.data(),
+                        id: doc.id
+                    }));
+
+                    // Expand recurring events
+                    events = expandRecurringEvents(events);
+
+                    // Calculate archive status
+                    events = calculateArchiveStatus(events);
+
+                    // Filter to only events in this month
+                    events = events.filter(e => e.date >= startDate && e.date <= endDate);
+
+                    // Get filter type
+                    const filterType = localStorage.getItem('calendarFilter') || 'active';
+
+                    // Apply filter
+                    events = filterCalendarEvents(events, filterType);
+
+                    // Group by date
+                    events.forEach(event => {
+                        if (!monthEvents[event.date]) monthEvents[event.date] = [];
+                        monthEvents[event.date].push(event);
+                    });
+                } catch (error) {
+                    console.error('Error loading calendar events:', error);
+                }
+            }
+
+            // Build calendar grid
+            const calendarDates = document.getElementById('calendarDates');
+            calendarDates.innerHTML = '';
+
+            // Previous month's trailing dates
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const date = daysInPrevMonth - i;
+                const cell = createCalendarCell(date, true, [], year, month - 1);
+                calendarDates.appendChild(cell);
+            }
+
+            // Current month dates
+            const today = new Date();
+            for (let date = 1; date <= daysInMonth; date++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                const events = monthEvents[dateStr] || [];
+                const isToday = date === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+                const cell = createCalendarCell(date, false, events, year, month, isToday);
+                calendarDates.appendChild(cell);
+            }
+
+            // Next month's leading dates
+            const totalCells = firstDay + daysInMonth;
+            const remainingCells = 42 - totalCells;
+            for (let date = 1; date <= remainingCells; date++) {
+                const cell = createCalendarCell(date, true, [], year, month + 1);
+                calendarDates.appendChild(cell);
+            }
+        }
+
+        function createCalendarCell(date, otherMonth, events, year, month, isToday = false) {
+            const cell = document.createElement('div');
+            cell.className = 'calendar-cell' + (otherMonth ? ' other-month' : '') + (isToday ? ' today' : '');
+
+            const dateDiv = document.createElement('div');
+            dateDiv.className = 'calendar-date';
+            dateDiv.textContent = date;
+            cell.appendChild(dateDiv);
+
+            // Add event dots
+            if (!otherMonth && events.length > 0) {
+                const eventsDiv = document.createElement('div');
+                eventsDiv.className = 'calendar-events';
+
+                events.slice(0, 4).forEach(event => {
+                    const dot = document.createElement('div');
+                    dot.className = `event-dot ${event.category || 'general'}`;
+                    dot.title = event.title;
+                    dot.textContent = event.title.substring(0, 1);
+                    dot.onclick = (e) => {
+                        e.stopPropagation();
+                        showEventDetails(event.id, event);
+                    };
+                    eventsDiv.appendChild(dot);
+                });
+
+                if (events.length > 4) {
+                    const more = document.createElement('div');
+                    more.className = 'event-more';
+                    more.textContent = `+${events.length - 4}`;
+                    eventsDiv.appendChild(more);
+                }
+
+                cell.appendChild(eventsDiv);
+            }
+
+            // Click on cell to show details
+            if (!otherMonth) {
+                cell.onclick = () => {
+                    if (events.length > 0) {
+                        showEventDetails(events[0].id, events[0]);
+                    }
+                };
+            }
+
+            return cell;
+        }
+
+        async function loadCalendarEvents() {
+            // Initialize calendar on load
+            await renderMonthlyCalendar();
+        }
+
+        function showEventDetails(eventId, eventData) {
+            const modal = document.getElementById('eventDetailsModal');
+            const detailsContent = document.getElementById('eventDetailsContent');
+            const editHistorySection = document.getElementById('editHistorySection');
+            const editHistoryContent = document.getElementById('editHistoryContent');
+            const editTimeBtn = document.getElementById('editTimeBtn');
+
+            // Store event data globally for editing
+            window.currentEventDetails = {
+                id: eventId,
+                ...eventData
+            };
+
+            // Display event details
+            detailsContent.innerHTML = `
+                <div>
+                    <p><strong>Title:</strong> ${eventData.title}</p>
+                    <p><strong>Date:</strong> ${eventData.date}</p>
+                    <p><strong>Time:</strong> ${eventData.time || 'Not specified'}</p>
+                    <p><strong>Category:</strong> ${eventData.category || 'General'}</p>
+                    ${eventData.notes ? `<p><strong>Notes:</strong> ${eventData.notes}</p>` : ''}
+                    ${eventData.isArchived ? `<p style="color: #999;"><em>📋 This event is archived</em></p>` : ''}
+                </div>
+            `;
+
+            // Show edit history if available
+            if (eventData.editHistory && eventData.editHistory.length > 0) {
+                editHistorySection.style.display = 'block';
+                editHistoryContent.innerHTML = eventData.editHistory.map(entry => {
+                    const changeDate = new Date(entry.changedAt.toDate()).toLocaleDateString();
+                    return `
+                        <div class="edit-entry">
+                            <strong>${entry.changedByName}</strong> changed <strong>${entry.field}</strong>
+                            from <span class="strikethrough">${entry.oldValue}</span>
+                            to <span class="highlight-new">${entry.newValue}</span>
+                            on <em>${changeDate}</em>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                editHistorySection.style.display = 'none';
+            }
+
+            // Show edit button if user role is parent
+            editTimeBtn.style.display = userRole === 'parent' ? 'block' : 'none';
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeEventDetailsModal() {
+            document.getElementById('eventDetailsModal').classList.add('hidden');
+            window.currentEventDetails = null;
+        }
+
+        async function editEventTime() {
+            const newTime = prompt('Enter new time (HH:MM):', window.currentEventDetails.time || '');
+            if (newTime === null) return; // User cancelled
+
+            // Validate format AND value ranges
+            const timeMatch = newTime.match(/^(\d{2}):(\d{2})$/);
+            if (!timeMatch) {
+                showNotification('Time must be in HH:MM format', 'error');
+                return;
+            }
+            const [, hour, minute] = timeMatch;
+            if (parseInt(hour) > 23 || parseInt(minute) > 59) {
+                showNotification('Invalid time (hours must be 0-23, minutes 0-59)', 'error');
+                return;
+            }
+
+            try {
+                const oldTime = window.currentEventDetails.time || 'Not specified';
+                const eventRef = db.collection('families').doc(currentFamily)
+                    .collection('events')
+                    .doc(window.currentEventDetails.id);
+
+                // Get current edit history
+                let editHistory = window.currentEventDetails.editHistory || [];
+
+                // Add new edit entry
+                const editEntry = {
+                    changedBy: currentUser.uid,
+                    changedByName: currentUser.displayName || 'Unknown',
+                    changedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    field: 'time',
+                    oldValue: oldTime,
+                    newValue: newTime
+                };
+                editHistory.push(editEntry);
+
+                // Update event
+                await eventRef.update({
+                    time: newTime,
+                    editHistory: editHistory
+                });
+
+                addNotification(`✏️ Event updated: Time changed ${oldTime} → ${newTime}`, 'info');
+                showNotification('Event time updated successfully!', 'success');
+                closeEventDetailsModal();
+                loadCalendarEvents();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function showAddEventModal() {
+            document.getElementById('addEventModal').classList.remove('hidden');
+            document.getElementById('eventDate').valueAsDate = new Date();
+        }
+
+        function closeAddEventModal() {
+            document.getElementById('addEventModal').classList.add('hidden');
+            document.getElementById('eventTitle').value = '';
+            document.getElementById('eventNotes').value = '';
+            clearRecurrenceFields();
+        }
+
+        // Helper functions for recurrence
+        function toggleRecurrenceFields() {
+            const isRecurring = document.getElementById('eventRecurring').checked;
+            const recurrenceSection = document.getElementById('recurrenceFields');
+            if (isRecurring) {
+                recurrenceSection.classList.remove('hidden');
+            } else {
+                recurrenceSection.classList.add('hidden');
+            }
+        }
+
+        function getSelectedRecurrenceDays() {
+            const days = [];
+            const dayIds = ['dayMonday', 'dayTuesday', 'dayWednesday', 'dayThursday', 'dayFriday', 'daySaturday', 'daySunday'];
+            dayIds.forEach(id => {
+                if (document.getElementById(id).checked) {
+                    const dayName = document.getElementById(id).value;
+                    days.push(dayName);
+                }
+            });
+            return days;
+        }
+
+        function clearRecurrenceFields() {
+            document.getElementById('eventRecurring').checked = false;
+            document.getElementById('recurrenceFields').classList.add('hidden');
+            document.getElementById('eventRecurrenceEndDate').value = '';
+            const dayIds = ['dayMonday', 'dayTuesday', 'dayWednesday', 'dayThursday', 'dayFriday', 'daySaturday', 'daySunday'];
+            dayIds.forEach(id => {
+                document.getElementById(id).checked = false;
+            });
+        }
+
+        async function addEvent() {
+            const title = document.getElementById('eventTitle').value.trim();
+            const date = document.getElementById('eventDate').value;
+            const time = document.getElementById('eventTime').value;
+            const notes = document.getElementById('eventNotes').value.trim();
+            const isRecurring = document.getElementById('eventRecurring').checked;
+
+            if (!title || !date) {
+                showNotification('Please fill in required fields', 'error');
+                return;
+            }
+
+            // Validate recurrence
+            if (isRecurring) {
+                const recurrenceDays = getSelectedRecurrenceDays();
+                if (recurrenceDays.length === 0) {
+                    showNotification('Please select at least one day for recurring events', 'error');
+                    return;
+                }
+            }
+
+            try {
+                // Calculate archive date (event date + 5 days)
+                const eventDate = new Date(date);
+                const archiveDate = new Date(eventDate);
+                archiveDate.setDate(archiveDate.getDate() + 5);
+
+                const eventData = {
+                    title: title,
+                    date: date,
+                    time: time || '',
+                    notes: notes,
+                    createdBy: currentUser.uid,
+                    createdByName: currentUser.displayName || 'Unknown',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    isArchived: false,
+                    archivedDate: archiveDate.toISOString().split('T')[0],
+                    editHistory: []
+                };
+
+                // Add recurrence data if applicable
+                if (isRecurring) {
+                    const recurrenceDays = getSelectedRecurrenceDays();
+                    const recurrenceEndDate = document.getElementById('eventRecurrenceEndDate').value;
+                    eventData.recurrence = {
+                        enabled: true,
+                        pattern: 'weekly',
+                        daysOfWeek: recurrenceDays,
+                        endDate: recurrenceEndDate || null
+                    };
+                } else {
+                    eventData.recurrence = {
+                        enabled: false,
+                        pattern: null,
+                        daysOfWeek: [],
+                        endDate: null
+                    };
+                }
+
+                await db.collection('families').doc(currentFamily).collection('events').add(eventData);
+
+                addNotification(`📌 Event created: ${title}`, 'success');
+                showNotification('Event added successfully!', 'success');
+                closeAddEventModal();
+                loadCalendarEvents();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function switchFamily() {
+            const selectedFamily = document.getElementById('familyDropdown').value;
+            currentFamily = selectedFamily;
+            loadCalendarEvents();
+            loadExpenses();
+            if (userRole === 'parent') {
+                loadFamilyMembers();
+                loadDocuments();
+            }
+
+            // Initialize activity types for this family
+            initializePredefinedActivityTypes();
+        }
+
+        async function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                await auth.signOut();
+                showNotification('Logged out successfully', 'success');
+            }
+        }
+
+        function showForgotPasswordForm() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('forgotPasswordForm').classList.remove('hidden');
+        }
+
+        function backToLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('forgotPasswordForm').classList.add('hidden');
+            document.getElementById('resetEmail').value = '';
+        }
+
+        async function sendPasswordReset() {
+            const email = document.getElementById('resetEmail').value.trim();
+
+            if (!email) {
+                showNotification('Please enter your email address', 'error');
+                return;
+            }
+
+            try {
+                await auth.sendPasswordResetEmail(email);
+                showNotification('Password reset link sent! Check your email.', 'success');
+                setTimeout(() => {
+                    backToLogin();
+                }, 2000);
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification show ${type}`;
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Document Functions
+        function showAddDocumentModal() {
+            // Populate child dropdown
+            const familyDoc = db.collection('families').doc(currentFamily);
+            familyDoc.get().then(doc => {
+                const children = doc.data().children || [];
+                const select = document.getElementById('docChildName');
+                select.innerHTML = '<option value="">Select child...</option>';
+                children.forEach(child => {
+                    const option = document.createElement('option');
+                    option.value = child;
+                    option.textContent = child;
+                    select.appendChild(option);
+                });
+            });
+
+            document.getElementById('addDocumentModal').classList.remove('hidden');
+        }
+
+        function closeAddDocumentModal() {
+            document.getElementById('addDocumentModal').classList.add('hidden');
+            document.getElementById('docChildName').value = '';
+            document.getElementById('docType').value = '';
+            document.getElementById('docNumber').value = '';
+            document.getElementById('docIssueDate').value = '';
+            document.getElementById('docExpiryDate').value = '';
+            document.getElementById('docNotes').value = '';
+        }
+
+        async function addDocument() {
+            const childName = document.getElementById('docChildName').value.trim();
+            const docType = document.getElementById('docType').value.trim();
+            const docNumber = document.getElementById('docNumber').value.trim();
+            const issueDate = document.getElementById('docIssueDate').value;
+            const expiryDate = document.getElementById('docExpiryDate').value;
+            const notes = document.getElementById('docNotes').value.trim();
+
+            if (!childName || !docType) {
+                showNotification('Please select child and document type', 'error');
+                return;
+            }
+
+            if (!expiryDate) {
+                showNotification('Please enter an expiry date', 'error');
+                return;
+            }
+
+            try {
+                await db.collection('families').doc(currentFamily).collection('documents').add({
+                    childName: childName,
+                    type: docType,
+                    number: docNumber,
+                    issueDate: issueDate,
+                    expiryDate: expiryDate,
+                    notes: notes,
+                    createdBy: currentUser.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                showNotification('Document added successfully!', 'success');
+                closeAddDocumentModal();
+                loadDocuments();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        function calculateDaysUntilExpiry(expiryDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const expiry = new Date(expiryDate);
+            expiry.setHours(0, 0, 0, 0);
+
+            const diffTime = expiry - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            return diffDays;
+        }
+
+        function getExpiryStatus(expiryDate) {
+            const daysLeft = calculateDaysUntilExpiry(expiryDate);
+
+            if (daysLeft < 0) {
+                return { status: 'expired', label: 'EXPIRED', color: 'expired' };
+            } else if (daysLeft <= 90) {
+                return { status: 'expiring-soon', label: `Expires in ${daysLeft} days`, color: 'expiring' };
+            } else {
+                return { status: 'valid', label: `Expires in ${daysLeft} days`, color: 'valid' };
+            }
+        }
+
+        async function loadDocuments() {
+            if (!currentFamily) return;
+
+            const documentsList = document.getElementById('documentsList');
+            documentsList.innerHTML = '<div class="loading">Loading documents...</div>';
+
+            try {
+                const docsSnapshot = await db.collection('families').doc(currentFamily)
+                    .collection('documents')
+                    .orderBy('expiryDate', 'asc')
+                    .get();
+
+                documentsList.innerHTML = '';
+
+                if (docsSnapshot.empty) {
+                    documentsList.innerHTML = '<div class="empty-state"><p>📄 No documents yet.</p><p style="font-size: 0.9em;">Add your first document to track passports and expiry dates.</p></div>';
+                    return;
+                }
+
+                docsSnapshot.forEach(doc => {
+                    const docData = doc.data();
+                    const status = getExpiryStatus(docData.expiryDate);
+                    const daysLeft = calculateDaysUntilExpiry(docData.expiryDate);
+
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `document-card ${status.status}`;
+
+                    let dateDisplay = new Date(docData.expiryDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+
+                    let typeIcon = '📄';
+                    if (docData.type === 'Passport') typeIcon = '🛂';
+                    else if (docData.type === 'Birth Certificate') typeIcon = '📋';
+                    else if (docData.type === 'Medical Record') typeIcon = '🏥';
+                    else if (docData.type === 'Vaccine Card') typeIcon = '💉';
+                    else if (docData.type === 'ID Card') typeIcon = '🆔';
+                    else if (docData.type === 'Travel Document') typeIcon = '✈️';
+
+                    cardDiv.innerHTML = `
+                        <div class="document-info">
+                            <h4>${typeIcon} ${docData.type}</h4>
+                            <p><strong>Child:</strong> ${docData.childName}</p>
+                            ${docData.number ? `<p><strong>Document #:</strong> ${docData.number}</p>` : ''}
+                            <p><strong>Expiry:</strong> ${dateDisplay}</p>
+                            ${docData.notes ? `<p><strong>Notes:</strong> ${docData.notes}</p>` : ''}
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-end;">
+                            <span class="expiry-status ${status.color}">${status.label}</span>
+                            <button class="btn-delete" onclick="deleteDocument('${doc.id}')">Delete</button>
+                        </div>
+                    `;
+
+                    documentsList.appendChild(cardDiv);
+                });
+            } catch (error) {
+                documentsList.innerHTML = `<p style="color: #dc3545;">Error loading documents: ${error.message}</p>`;
+            }
+        }
+
+        async function deleteDocument(docId) {
+            if (confirm('Are you sure you want to delete this document?')) {
+                try {
+                    await db.collection('families').doc(currentFamily)
+                        .collection('documents')
+                        .doc(docId)
+                        .delete();
+
+                    showNotification('Document deleted successfully!', 'success');
+                    loadDocuments();
+                } catch (error) {
+                    showNotification(error.message, 'error');
+                }
+            }
+        }
+
+        // Expense Management Functions
+        function showAddExpenseForm() {
+            const childSelect = document.getElementById('expenseChildName');
+            const paidBySelect = document.getElementById('expensePaidBy');
+
+            const familyRef = db.collection('families').doc(currentFamily);
+            familyRef.get().then(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+
+                    childSelect.innerHTML = '<option value="">Not linked to a child</option>';
+                    (data.children || []).forEach(child => {
+                        const option = document.createElement('option');
+                        option.value = child;
+                        option.textContent = child;
+                        childSelect.appendChild(option);
+                    });
+
+                    paidBySelect.innerHTML = '<option value="">Select parent...</option>';
+                    (data.parents || []).forEach(parent => {
+                        const option = document.createElement('option');
+                        option.value = parent.name;
+                        option.textContent = parent.name;
+                        paidBySelect.appendChild(option);
+                    });
+                }
+            });
+
+            document.getElementById('expenseDate').valueAsDate = new Date();
+
+            document.getElementById('expenseFormContainer').classList.remove('hidden');
+            document.getElementById('expenseFormContainer').style.display = 'block';
+        }
+
+        function hideAddExpenseForm() {
+            document.getElementById('expenseFormContainer').classList.add('hidden');
+            document.getElementById('expenseFormContainer').style.display = 'none';
+            clearExpenseForm();
+        }
+
+        function clearExpenseForm() {
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseDescription').value = '';
+            document.getElementById('expenseCategory').value = '';
+            document.getElementById('expenseChildName').value = '';
+            document.getElementById('expensePaidBy').value = '';
+            document.getElementById('expenseNotes').value = '';
+        }
+
+        function showPaymentForm() {
+            const fromSelect = document.getElementById('paymentFrom');
+            const toSelect = document.getElementById('paymentTo');
+
+            const familyRef = db.collection('families').doc(currentFamily);
+            familyRef.get().then(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+
+                    fromSelect.innerHTML = '<option value="">Select parent...</option>';
+                    toSelect.innerHTML = '<option value="">Select parent...</option>';
+                    (data.parents || []).forEach(parent => {
+                        const optionFrom = document.createElement('option');
+                        optionFrom.value = parent.name;
+                        optionFrom.textContent = parent.name;
+                        fromSelect.appendChild(optionFrom);
+
+                        const optionTo = document.createElement('option');
+                        optionTo.value = parent.name;
+                        optionTo.textContent = parent.name;
+                        toSelect.appendChild(optionTo);
+                    });
+                }
+            });
+
+            document.getElementById('paymentForm').style.display = 'block';
+        }
+
+        function hidePaymentForm() {
+            document.getElementById('paymentForm').style.display = 'none';
+        }
+
+        function clearPaymentForm() {
+            document.getElementById('paymentFrom').value = '';
+            document.getElementById('paymentTo').value = '';
+            document.getElementById('paymentAmount').value = '';
+            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('paymentValidationWarning').style.display = 'none';
+        }
+
+        // Task 5 Helper Functions
+        function formatZAR(amount) {
+            return new Intl.NumberFormat('en-ZA', {
+                style: 'currency',
+                currency: 'ZAR',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        async function calculateSettlement(familyId) {
+            try {
+                const expensesSnap = await db.collection('families').doc(familyId).collection('expenses').get();
+                const familyDoc = await db.collection('families').doc(familyId).get();
+
+                const expenses = expensesSnap.docs.map(doc => doc.data());
+                const parents = familyDoc.data().parents || [];
+
+                if (expenses.length === 0 || parents.length === 0) {
+                    return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
+                }
+
+                let totalExpenses = 0;
+                let paidByParent = {};
+                expenses.forEach(exp => {
+                    totalExpenses += exp.amount;
+                    paidByParent[exp.paidBy] = (paidByParent[exp.paidBy] || 0) + exp.amount;
+                });
+
+                const fairShare = totalExpenses / parents.length;
+                let balances = {};
+                let totalPaid = {};
+
+                parents.forEach(parent => {
+                    const paid = paidByParent[parent.name] || 0;
+                    totalPaid[parent.name] = paid;
+                    balances[parent.name] = paid - fairShare;
+                });
+
+                let settlement = null;
+                for (const [name, balance] of Object.entries(balances)) {
+                    if (balance < 0) {
+                        const owed = Math.abs(balance);
+                        for (const [creditor, creditorBalance] of Object.entries(balances)) {
+                            if (creditor !== name && creditorBalance > 0) {
+                                settlement = {
+                                    from: name,
+                                    to: creditor,
+                                    amount: Math.min(owed, creditorBalance)
+                                };
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                const paymentsSnap = await db.collection('families').doc(familyId).collection('payments').get();
+                const payments = paymentsSnap.docs.map(doc => doc.data());
+
+                return { totalExpenses, fairShare, balances, settlement, totalPaid, payments: payments };
+            } catch (error) {
+                console.error('Error calculating settlement:', error);
+                return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
+            }
+        }
+
+        async function calculateRemainingBalance(familyId, settlement) {
+            if (!settlement) return 0;
+
+            const paymentsSnap = await db.collection('families').doc(familyId)
+                .collection('payments')
+                .where('from', '==', settlement.from)
+                .where('to', '==', settlement.to)
+                .get();
+
+            const payments = paymentsSnap.docs.map(doc => doc.data());
+            const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+
+            return Math.max(0, settlement.amount - totalPaid);
+        }
+
+        async function saveExpense() {
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const description = document.getElementById('expenseDescription').value.trim();
+            const date = document.getElementById('expenseDate').value;
+            const category = document.getElementById('expenseCategory').value;
+            const childName = document.getElementById('expenseChildName').value;
+            const paidBy = document.getElementById('expensePaidBy').value;
+            const notes = document.getElementById('expenseNotes').value.trim();
+
+            if (!amount || amount <= 0) {
+                showNotification('Amount must be greater than 0', 'error');
+                return;
+            }
+            if (!description) {
+                showNotification('Description is required', 'error');
+                return;
+            }
+            if (!date) {
+                showNotification('Date is required', 'error');
+                return;
+            }
+            if (!paidBy) {
+                showNotification('Please select who paid', 'error');
+                return;
+            }
+
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('expenses').add({
+                        amount: amount,
+                        description: description,
+                        date: date,
+                        category: category || null,
+                        childName: childName || null,
+                        paidBy: paidBy,
+                        notes: notes,
+                        createdBy: currentUser.uid,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+
+                showNotification('Expense added successfully!', 'success');
+                hideAddExpenseForm();
+                loadExpenses();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loadExpenses() {
+            if (!currentFamily) return;
+
+            const expensesList = document.getElementById('expensesList');
+            expensesList.innerHTML = '<div class="loading">Loading expenses...</div>';
+
+            try {
+                const expensesSnapshot = await db.collection('families').doc(currentFamily)
+                    .collection('expenses')
+                    .orderBy('date', 'desc')
+                    .get();
+
+                expensesList.innerHTML = '';
+
+                if (expensesSnapshot.empty) {
+                    expensesList.innerHTML = '<div class="empty-state"><p>💸 No expenses yet.</p><p style="font-size: 0.9em;">Add your first expense to get started.</p></div>';
+                    document.getElementById('settlementSummary').classList.add('hidden');
+                    document.getElementById('settlementSummary').style.display = 'none';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.style.cssText = 'width: 100%; border-collapse: collapse; margin-bottom: 20px;';
+
+                const header = table.createTHead();
+                const headerRow = header.insertRow();
+                headerRow.style.cssText = 'background: #f8f9fa; border-bottom: 2px solid #e0e0e0;';
+                ['Date', 'Description', 'Amount (ZAR)', 'Category', 'Paid By', 'Action'].forEach(text => {
+                    const th = document.createElement('th');
+                    th.textContent = text;
+                    th.style.cssText = 'padding: 10px; text-align: left; font-weight: 600; color: #333;';
+                    headerRow.appendChild(th);
+                });
+
+                const tbody = table.createTBody();
+                const expenses = [];
+
+                expensesSnapshot.forEach(doc => {
+                    const expense = doc.data();
+                    expenses.push(expense);
+
+                    const row = tbody.insertRow();
+                    row.style.cssText = 'border-bottom: 1px solid #e0e0e0;';
+
+                    const dateCell = row.insertCell();
+                    dateCell.textContent = new Date(expense.date).toLocaleDateString('en-ZA');
+                    dateCell.style.cssText = 'padding: 12px 10px;';
+
+                    const descCell = row.insertCell();
+                    descCell.style.cssText = 'padding: 12px 10px;';
+
+                    const descText = document.createElement('div');
+                    descText.textContent = expense.description;
+                    descText.style.fontWeight = '600';
+                    descCell.appendChild(descText);
+
+                    if (expense.childName) {
+                        const childLink = document.createElement('small');
+                        childLink.textContent = 'Linked to: ' + expense.childName;
+                        childLink.style.color = '#666';
+                        childLink.style.display = 'block';
+                        descCell.appendChild(childLink);
+                    }
+
+                    const amountCell = row.insertCell();
+                    amountCell.textContent = `R ${expense.amount.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    amountCell.style.cssText = 'padding: 12px 10px; font-weight: 600;';
+
+                    const categoryCell = row.insertCell();
+                    categoryCell.textContent = expense.category || '-';
+                    categoryCell.style.cssText = 'padding: 12px 10px;';
+
+                    const paidCell = row.insertCell();
+                    paidCell.textContent = expense.paidBy;
+                    paidCell.style.cssText = 'padding: 12px 10px;';
+
+                    const actionCell = row.insertCell();
+                    actionCell.innerHTML = `<button class="btn-delete" onclick="deleteExpense('${doc.id}')">Delete</button>`;
+                    actionCell.style.cssText = 'padding: 12px 10px;';
+                });
+
+                expensesList.appendChild(table);
+
+                // Calculate and display settlement
+                const settlement = await calculateSettlement(currentFamily);
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+
+                if (settlement.settlement) {
+                    const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement);
+                    const totalPaid = settlement.settlement.amount - remaining;
+                    const progressPercent = (totalPaid / settlement.settlement.amount) * 100;
+
+                    const settlementText = `${settlement.settlement.from} owes ${settlement.settlement.to} ${formatZAR(settlement.settlement.amount)}`;
+                    document.getElementById('settlementText').innerHTML = settlementText;
+
+                    const statusEmoji = remaining <= 0 ? '✅' : '⏳';
+
+                    document.getElementById('settlementProgress').innerHTML = `
+                        <div style="margin-bottom: 10px; font-size: 0.95em;">
+                            <strong>${statusEmoji} Progress:</strong> Paid ${formatZAR(totalPaid)} of ${formatZAR(settlement.settlement.amount)}
+                            ${remaining <= 0 ? '(SETTLED)' : `(${Math.round(progressPercent)}%)`}
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
+                            <div style="height: 100%; background: ${remaining <= 0 ? '#4caf50' : '#667eea'}; width: ${Math.min(progressPercent, 100)}%; transition: width 0.3s;"></div>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                            Remaining: <strong>${formatZAR(remaining)}</strong>
+                        </div>
+                    `;
+                    document.getElementById('settlementText').style.display = 'block';
+                    document.getElementById('settlementProgress').style.display = 'block';
+                } else {
+                    document.getElementById('settlementText').innerHTML = `<div style="color: #4caf50; font-weight: 600;">✅ All settlements balanced!</div>`;
+                    document.getElementById('settlementProgress').innerHTML = '';
+                    document.getElementById('settlementText').style.display = 'block';
+                }
+
+                // Load and display payment history
+                await displayPaymentHistory(currentFamily);
+
+                // Populate parent dropdowns in payment form
+                const parents = settlement.settlement ?
+                    [settlement.settlement.from, settlement.settlement.to] :
+                    (familyDoc.data().parents || []).map(p => p.name);
+
+                const fromSelect = document.getElementById('paymentFrom');
+                const toSelect = document.getElementById('paymentTo');
+                fromSelect.innerHTML = '<option value="">Select parent</option>';
+                toSelect.innerHTML = '<option value="">Select parent</option>';
+
+                parents.forEach(parent => {
+                    if (typeof parent === 'string') {
+                        fromSelect.innerHTML += `<option value="${parent}">${parent}</option>`;
+                        toSelect.innerHTML += `<option value="${parent}">${parent}</option>`;
+                    }
+                });
+
+                // Pre-fill payment form if there's an active settlement
+                if (settlement.settlement) {
+                    document.getElementById('paymentFrom').value = settlement.settlement.from;
+                    document.getElementById('paymentTo').value = settlement.settlement.to;
+                    document.getElementById('paymentAmount').value = await calculateRemainingBalance(currentFamily, settlement.settlement);
+                    document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+                }
+
+                // Show the settlement summary
+                document.getElementById('settlementSummary').classList.remove('hidden');
+                document.getElementById('settlementSummary').style.display = 'block';
+            } catch (error) {
+                expensesList.innerHTML = `<p style="color: #dc3545;">Error loading expenses: ${error.message}</p>`;
+            }
+        }
+
+        async function deleteExpense(expenseId) {
+            if (!confirm('Are you sure you want to delete this expense?')) return;
+
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('expenses')
+                    .doc(expenseId)
+                    .delete();
+
+                showNotification('Expense deleted successfully!', 'success');
+                loadExpenses();
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        async function loadSettlement(expenses) {
+            if (!currentFamily) return;
+
+            try {
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                if (!familyDoc.exists) return;
+
+                const family = familyDoc.data();
+                const parents = family.parents || [];
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+                if (parents.length === 0 || totalExpenses === 0) {
+                    document.getElementById('settlementSummary').classList.add('hidden');
+                    return;
+                }
+
+                const fairSharePerParent = totalExpenses / parents.length;
+
+                const parentPayments = {};
+                parents.forEach(p => {
+                    parentPayments[p.name] = 0;
+                });
+
+                expenses.forEach(expense => {
+                    if (parentPayments.hasOwnProperty(expense.paidBy)) {
+                        parentPayments[expense.paidBy] += expense.amount;
+                    }
+                });
+
+                const balances = {};
+                parents.forEach(p => {
+                    const paid = parentPayments[p.name] || 0;
+                    balances[p.name] = paid - fairSharePerParent;
+                });
+
+                const summary = document.getElementById('settlementSummary');
+                let html = '<h4>💰 Expense Summary</h4>';
+                html += '<div class="settlement-summary">';
+
+                parents.forEach(p => {
+                    const paid = parentPayments[p.name] || 0;
+                    html += `<div class="settlement-item">
+                        <strong>${p.name}</strong><br>
+                        Paid: R ${paid.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </div>`;
+                });
+
+                html += '</div>';
+
+                const settlements = [];
+                const owes = Object.entries(balances).filter(([name, balance]) => balance < 0);
+                const owed = Object.entries(balances).filter(([name, balance]) => balance > 0);
+
+                owes.forEach(([debtor, debtAmount]) => {
+                    const absDebt = Math.abs(debtAmount);
+                    owed.forEach(([creditor, creditAmount]) => {
+                        if (creditAmount > 0.01) {
+                            const settlement = Math.min(absDebt, creditAmount);
+                            if (settlement > 0.01) {
+                                settlements.push({debtor, creditor, amount: settlement});
+                                debtAmount += settlement;
+                            }
+                        }
+                    });
+                });
+
+                if (settlements.length > 0) {
+                    html += '<h4 style="margin-top: 15px;">⚖️ Settlement</h4>';
+                    settlements.forEach(s => {
+                        html += `<div class="settlement-owed">
+                            ${s.debtor} owes ${s.creditor} R ${s.amount.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </div>`;
+                    });
+                } else {
+                    html += '<div class="settlement-owed" style="background: #d4edda; color: #155724;">✓ All settled up!</div>';
+                }
+
+                summary.innerHTML = html;
+                summary.classList.remove('hidden');
+                summary.style.display = 'block';
+            } catch (error) {
+                console.error('Error calculating settlement:', error);
+            }
+        }
+
+        async function loadParentSplitsInSettings() {
+            try {
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                if (!familyDoc.exists) return;
+
+                const family = familyDoc.data();
+                let parents = family.parents || [];
+
+                // If no parents exist, initialize with default
+                if (parents.length === 0) {
+                    parents = [
+                        {name: currentUser.displayName || 'Parent 1', split: 50},
+                        {name: 'Parent 2', split: 50}
+                    ];
+                }
+
+                const container = document.getElementById('parentsSplitContainer');
+                container.innerHTML = '';
+
+                parents.forEach((parent, index) => {
+                    const group = document.createElement('div');
+                    group.className = 'parent-input-group';
+                    group.style.cssText = 'background: white; border: 1px solid #e0e0e0; padding: 12px;';
+                    group.innerHTML = `
+                        <input type="text" value="${parent.name}" placeholder="Parent name" data-parent-index="${index}">
+                        <input type="number" value="${parent.split}" min="0" max="100" step="0.1" placeholder="%" data-parent-index="${index}">
+                    `;
+                    container.appendChild(group);
+                });
+            } catch (error) {
+                console.error('Error loading parent splits:', error);
+            }
+        }
+
+        async function saveSplitChanges() {
+            try {
+                const inputs = document.querySelectorAll('#parentsSplitContainer input');
+                const parents = [];
+                let totalSplit = 0;
+
+                for (let i = 0; i < inputs.length; i += 2) {
+                    const name = inputs[i].value.trim();
+                    const split = parseFloat(inputs[i + 1].value) || 0;
+
+                    if (!name) {
+                        showNotification('Please enter all parent names', 'error');
+                        return;
+                    }
+
+                    if (split <= 0 || split > 100) {
+                        showNotification('Split percentages must be between 0 and 100', 'error');
+                        return;
+                    }
+
+                    parents.push({name, split});
+                    totalSplit += split;
+                }
+
+                if (Math.abs(totalSplit - 100) > 0.01) {
+                    showNotification(`Percentages total ${totalSplit.toFixed(1)}% (must be 100%)`, 'error');
+                    return;
+                }
+
+                await db.collection('families').doc(currentFamily).update({
+                    parents: parents
+                });
+
+                showNotification('Split configuration updated!', 'success');
+            } catch (error) {
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Payment History Toggle Function
+        function togglePaymentHistory(button) {
+            const isExpanded = button.getAttribute('aria-expanded') === 'true';
+            const content = document.getElementById('paymentHistoryContent');
+            const toggle = document.getElementById('paymentHistoryToggle');
+
+            if (isExpanded) {
+                content.style.display = 'none';
+                button.setAttribute('aria-expanded', 'false');
+                toggle.textContent = '▼';
+            } else {
+                content.style.display = 'block';
+                button.setAttribute('aria-expanded', 'true');
+                toggle.textContent = '▲';
+            }
+        }
+
+        // Task 6: Record Payment Function
+        async function recordPayment() {
+            const from = document.getElementById('paymentFrom').value;
+            const to = document.getElementById('paymentTo').value;
+            const amount = parseFloat(document.getElementById('paymentAmount').value);
+            const date = document.getElementById('paymentDate').value;
+
+            if (!from || !to) {
+                alert('Please select both payer and recipient');
+                return;
+            }
+            if (from === to) {
+                alert('Payer and recipient must be different');
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert('Amount must be greater than 0');
+                return;
+            }
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+
+            try {
+                const currentFamily = document.getElementById('familyDropdown').value;
+
+                await db.collection('families').doc(currentFamily).collection('payments').add({
+                    from: from,
+                    to: to,
+                    amount: amount,
+                    date: date,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                hidePaymentForm();
+                clearPaymentForm();
+                loadExpenses();
+
+                showNotification('Payment recorded successfully', 'success');
+            } catch (error) {
+                console.error('Error recording payment:', error);
+                showNotification('Failed to record payment: ' + error.message, 'error');
+            }
+        }
+
+        // Validate Payment Amount
+        async function validatePaymentAmount() {
+            const amount = parseFloat(document.getElementById('paymentAmount').value);
+            const currentFamily = document.getElementById('familyDropdown').value;
+
+            if (!amount || amount <= 0) return;
+
+            const settlement = await calculateSettlement(currentFamily);
+            if (settlement.settlement) {
+                const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement);
+
+                if (amount > remaining) {
+                    document.getElementById('paymentValidationWarning').textContent =
+                        `⚠️ This exceeds remaining balance of ${formatZAR(remaining)}. This will be recorded anyway.`;
+                    document.getElementById('paymentValidationWarning').style.display = 'block';
+                } else {
+                    document.getElementById('paymentValidationWarning').style.display = 'none';
+                }
+            }
+        }
+
+        // Add event listener for payment amount validation
+        document.getElementById('paymentAmount').addEventListener('change', validatePaymentAmount);
+
+        // Task 7: Load and display payment history
+        async function loadPayments(familyId) {
+            try {
+                const paymentsSnap = await db.collection('families').doc(familyId)
+                    .collection('payments')
+                    .orderBy('date', 'desc')
+                    .get();
+
+                const payments = paymentsSnap.docs.map(doc => doc.data());
+                return payments;
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                return [];
+            }
+        }
+
+        async function displayPaymentHistory(familyId) {
+            const payments = await loadPayments(familyId);
+            const historyList = document.getElementById('paymentHistoryList');
+
+            if (payments.length === 0) {
+                historyList.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">No payments recorded yet</div>';
+                return;
+            }
+
+            let html = '';
+            payments.forEach(payment => {
+                html += `
+                    <div style="padding: 8px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between;">
+                        <span>
+                            <strong>${payment.from}</strong> → <strong>${payment.to}</strong>
+                        </span>
+                        <span style="text-align: right;">
+                            <div style="color: #667eea; font-weight: 600;">${formatZAR(payment.amount)}</div>
+                            <div style="font-size: 0.85em; color: #999;">${payment.date}</div>
+                        </span>
+                    </div>
+                `;
+            });
+
+            historyList.innerHTML = html;
+        }
+
+        // TASK 7: Weekly Schedule Management
+
+        // Global variable to track current week
+        let currentWeekStart = new Date();
+        currentWeekStart.setHours(0, 0, 0, 0);
+        const day = currentWeekStart.getDay();
+        const diff = currentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
+        currentWeekStart.setDate(diff);
+
+        // Navigation functions
+        function previousWeek() {
+            currentWeekStart.setDate(currentWeekStart.getDate() - 7);
+            renderWeeklySchedule();
+        }
+
+        function nextWeek() {
+            currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+            renderWeeklySchedule();
+        }
+
+        function updateWeekDisplay() {
+            const weekEnd = new Date(currentWeekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            const format = { month: 'short', day: 'numeric', year: 'numeric' };
+            document.getElementById('weekDisplay').textContent =
+                `Week of ${currentWeekStart.toLocaleDateString('en-US', format)} - ${weekEnd.toLocaleDateString('en-US', format)}`;
+        }
+
+        async function renderWeeklySchedule() {
+            if (!currentFamily) return;
+
+            const gridDiv = document.getElementById('weeklyScheduleGrid');
+            gridDiv.innerHTML = '<div class="loading">Loading schedule...</div>';
+
+            try {
+                // Load schedule document
+                const scheduleDoc = await db.collection('families').doc(currentFamily)
+                    .collection('schedule')
+                    .doc('default')
+                    .get();
+
+                let weeklyPattern = [];
+                if (scheduleDoc.exists) {
+                    weeklyPattern = scheduleDoc.data().weeklyPattern || [];
+                }
+
+                // Load events for the week
+                const weekEnd = new Date(currentWeekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                weekEnd.setHours(23, 59, 59, 999);
+
+                const eventsSnapshot = await db.collection('families').doc(currentFamily)
+                    .collection('events')
+                    .where('date', '>=', currentWeekStart.toISOString().split('T')[0])
+                    .where('date', '<=', weekEnd.toISOString().split('T')[0])
+                    .get();
+
+                const events = eventsSnapshot.docs.map(doc => doc.data());
+
+                // Build grid HTML
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                const timeSlots = ['Morning (6am-12pm)', 'Afternoon (12pm-6pm)', 'Evening (6pm+)'];
+
+                let html = '<div class="schedule-grid">';
+
+                // Header row with days
+                html += '<div class="schedule-header" style="background: white; border: none;"></div>';
+                for (let i = 0; i < 7; i++) {
+                    const dayDate = new Date(currentWeekStart);
+                    dayDate.setDate(dayDate.getDate() + i);
+                    const dayName = days[i];
+                    const dateStr = dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    html += `<div class="schedule-header">${dayName}<br>${dateStr}</div>`;
+                }
+
+                // Time slot rows
+                timeSlots.forEach((slot, slotIndex) => {
+                    html += `<div class="schedule-time">${slot}</div>`;
+
+                    for (let i = 0; i < 7; i++) {
+                        const dayDate = new Date(currentWeekStart);
+                        dayDate.setDate(dayDate.getDate() + i);
+                        const dayName = days[i];
+                        const dateStr = dayDate.toISOString().split('T')[0];
+
+                        html += '<div class="schedule-cell">';
+
+                        // Add custody block
+                        const custody = weeklyPattern.find(p => p.day === dayName);
+                        if (custody) {
+                            let custodyClass = `custody-${custody.parent.toLowerCase()}`;
+                            if (!custodyClass.includes('louis') && !custodyClass.includes('cecilia')) {
+                                custodyClass = 'custody-parent';
+                            }
+                            html += `<div class="custody-block ${custodyClass}">${custody.parent}</div>`;
+                        }
+
+                        // Add events for this day
+                        const dayEvents = events.filter(e => e.date === dateStr);
+                        dayEvents.forEach(event => {
+                            let eventClass = 'activity';
+                            if (event.title && event.title.toLowerCase().includes('appointment')) {
+                                eventClass = 'appointment';
+                            }
+                            html += `<div class="event-item ${eventClass}" title="${event.title}">
+                                ${event.title.substring(0, 15)}${event.title.length > 15 ? '...' : ''}
+                            </div>`;
+                        });
+
+                        html += '</div>';
+                    }
+                });
+
+                html += '</div>';
+
+                gridDiv.innerHTML = html;
+                updateWeekDisplay();
+
+                // Show nanny note if user is helper
+                if (userRole === 'helper') {
+                    document.getElementById('scheduleNannyNote').style.display = 'block';
+                } else {
+                    document.getElementById('scheduleNannyNote').style.display = 'none';
+                }
+            } catch (error) {
+                gridDiv.innerHTML = `<p style="color: #dc3545;">Error loading schedule: ${error.message}</p>`;
+            }
+        }
+
+        // TASK 8: Schedule Setup & Configuration
+
+        async function showScheduleSetupModal() {
+            const builderDiv = document.getElementById('scheduleBuilder');
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+            // Load family data to get parents list
+            const familyDoc = await db.collection('families').doc(currentFamily).get();
+            const parents = familyDoc.data().parents || [];
+
+            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">';
+
+            days.forEach(day => {
+                html += `
+                    <div style="padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa;">
+                        <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">${day}</label>
+                        <select id="schedule_${day}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.95em;">
+                            <option value="">Select parent...</option>
+                `;
+
+                // Add options from family parents array
+                parents.forEach(parent => {
+                    html += `<option value="${parent.name}">${parent.name}</option>`;
+                });
+
+                html += `
+                        </select>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            builderDiv.innerHTML = html;
+
+            // Load existing schedule if present
+            db.collection('families').doc(currentFamily)
+                .collection('schedule')
+                .doc('default')
+                .get()
+                .then(doc => {
+                    if (doc.exists) {
+                        const pattern = doc.data().weeklyPattern || [];
+                        pattern.forEach(p => {
+                            const select = document.getElementById(`schedule_${p.day}`);
+                            if (select) select.value = p.parent;
+                        });
+                    }
+                });
+
+            document.getElementById('scheduleSetupModal').classList.remove('hidden');
+        }
+
+        function closeScheduleSetupModal() {
+            document.getElementById('scheduleSetupModal').classList.add('hidden');
+        }
+
+        async function saveSchedule() {
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const pattern = [];
+
+            days.forEach(day => {
+                const parent = document.getElementById(`schedule_${day}`).value;
+                if (parent) {
+                    pattern.push({
+                        day: day,
+                        parent: parent,
+                        timeStart: '00:00',
+                        timeEnd: '23:59'
+                    });
+                }
+            });
+
+            if (pattern.length === 0) {
+                showNotification('Please select at least one day', 'error');
+                return;
+            }
+
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('schedule')
+                    .doc('default')
+                    .set({
+                        weeklyPattern: pattern,
+                        startDate: new Date().toISOString().split('T')[0],
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                showNotification('Schedule saved!', 'success');
+                closeScheduleSetupModal();
+                renderWeeklySchedule();
+            } catch (error) {
+                showNotification('Error saving schedule: ' + error.message, 'error');
+            }
+        }
+
+        // Update switchTab to handle weekly schedule
+        const originalSwitchTab = switchTab;
+        window.switchTab = function(tabName) {
+            if (tabName === 'weeklySchedule') {
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+                event.target.classList.add('active');
+                document.getElementById(tabName).classList.add('active');
+
+                renderWeeklySchedule();
+            } else {
+                originalSwitchTab.call(this, tabName);
+            }
+
+            // Load nanny list when switching to settings (Task 9)
+            if (tabName === 'settings') {
+                loadNannyList();
+            }
+        };
+
+        // ===== TASK 9: Nanny Management =====
+        function showInviteNannyModal() {
+            document.getElementById('inviteNannyModal').classList.remove('hidden');
+        }
+
+        function closeInviteNannyModal() {
+            document.getElementById('inviteNannyModal').classList.add('hidden');
+            document.getElementById('nannyEmail').value = '';
+            document.getElementById('nannyName').value = '';
+        }
+
+        async function sendNannyInvite() {
+            const email = document.getElementById('nannyEmail').value.trim();
+            const name = document.getElementById('nannyName').value.trim();
+
+            if (!email) {
+                showNotification('Please enter an email address', 'error');
+                return;
+            }
+
+            try {
+                // Create nanny document with pending status
+                await db.collection('families').doc(currentFamily)
+                    .collection('nannies')
+                    .add({
+                        email: email,
+                        name: name || 'Nanny',
+                        status: 'pending',
+                        permissions: ['view_schedule', 'add_events'],
+                        addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        addedBy: currentUser.uid
+                    });
+
+                addNotification(`👶 Nanny invited: ${email}`, 'info');
+                showNotification(`Invite sent to ${email}!`, 'success');
+                closeInviteNannyModal();
+                loadNannyList();
+            } catch (error) {
+                showNotification('Error sending invite: ' + error.message, 'error');
+            }
+        }
+
+        async function loadNannyList() {
+            try {
+                const nanniesSnap = await db.collection('families').doc(currentFamily)
+                    .collection('nannies')
+                    .get();
+
+                const nannyListDiv = document.getElementById('nannyList');
+
+                if (nanniesSnap.empty) {
+                    nannyListDiv.innerHTML = '<p style="color: #999;">No nannies invited yet</p>';
+                    return;
+                }
+
+                let html = '<table style="width: 100%; border-collapse: collapse;"><tr style="background: #f5f5f5;"><th style="padding: 10px; text-align: left;">Name</th><th style="padding: 10px; text-align: left;">Email</th><th style="padding: 10px; text-align: left;">Status</th><th style="padding: 10px;">Action</th></tr>';
+
+                nanniesSnap.docs.forEach(doc => {
+                    const nanny = doc.data();
+                    html += `
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 10px;">${nanny.name}</td>
+                            <td style="padding: 10px;">${nanny.email}</td>
+                            <td style="padding: 10px;">${nanny.status}</td>
+                            <td style="padding: 10px;"><button onclick="removeNanny('${doc.id}')" style="padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">Remove</button></td>
+                        </tr>
+                    `;
+                });
+
+                html += '</table>';
+                nannyListDiv.innerHTML = html;
+            } catch (error) {
+                document.getElementById('nannyList').innerHTML = `<p style="color: #dc3545;">Error loading nannies: ${error.message}</p>`;
+            }
+        }
+
+        async function removeNanny(nannyId) {
+            if (!confirm('Remove this nanny?')) return;
+
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('nannies')
+                    .doc(nannyId)
+                    .delete();
+
+                addNotification('👶 Nanny removed', 'info');
+                showNotification('Nanny removed', 'success');
+                loadNannyList();
+            } catch (error) {
+                showNotification('Error removing nanny: ' + error.message, 'error');
+            }
+        }
+
+        // Global flag for nanny detection
+        let isNanny = false;
+
+        // ===== TASK 10: Notification System =====
+        let notifications = [];
+
+        function toggleNotificationDropdown() {
+            const dropdown = document.getElementById('notificationsDropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function addNotification(message, type = 'info') {
+            notifications.unshift({
+                message: message,
+                type: type,
+                timestamp: new Date()
+            });
+
+            // Keep only last 50
+            if (notifications.length > 50) {
+                notifications = notifications.slice(0, 50);
+            }
+
+            updateNotificationDisplay();
+        }
+
+        function updateNotificationDisplay() {
+            const badge = document.getElementById('notificationBadge');
+            const list = document.getElementById('notificationsList');
+
+            badge.textContent = notifications.length;
+            badge.style.display = notifications.length > 0 ? 'flex' : 'none';
+
+            if (notifications.length === 0) {
+                list.innerHTML = '<div style="padding: 20px; color: #999; text-align: center;">No notifications</div>';
+                return;
+            }
+
+            list.innerHTML = '';
+            notifications.forEach((n, idx) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'padding: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer;';
+                div.onmouseover = () => div.style.background = '#f5f5f5';
+                div.onmouseout = () => div.style.background = '';
+
+                const msgDiv = document.createElement('div');
+                msgDiv.textContent = n.message;
+                msgDiv.style.cssText = 'font-weight: 600; margin-bottom: 3px;';
+
+                const timeDiv = document.createElement('div');
+                timeDiv.textContent = n.timestamp.toLocaleTimeString();
+                timeDiv.style.cssText = 'font-size: 0.85em; color: #999;';
+
+                div.appendChild(msgDiv);
+                div.appendChild(timeDiv);
+                div.onclick = () => dismissNotification(idx);
+                list.appendChild(div);
+            });
+        }
+
+        function dismissNotification(idx) {
+            notifications.splice(idx, 1);
+            updateNotificationDisplay();
+        }
+
+        // Initialize predefined activity types
+        async function initializePredefinedActivityTypes() {
+            if (!currentFamily) return;
+
+            const predefinedTypes = [
+                { id: 'pickups', name: 'Pickups', icon: '🚗', category: 'essential' },
+                { id: 'homework', name: 'Homework', icon: '📚', category: 'essential' },
+                { id: 'meals', name: 'Meals', icon: '🍽️', category: 'essential' },
+                { id: 'home-activities', name: 'Home activities', icon: '🏠', category: 'play' },
+                { id: 'activities', name: 'Activities', icon: '🎵', category: 'play' },
+                { id: 'bedtime', name: 'Bedtime routines', icon: '💤', category: 'essential' }
+            ];
+
+            try {
+                const activityTypesRef = db.collection('families').doc(currentFamily).collection('activityTypes');
+
+                // Check if any predefined types already exist
+                const snapshot = await activityTypesRef.get();
+                if (snapshot.docs.length === 0) {
+                    // Add predefined types
+                    for (const type of predefinedTypes) {
+                        await activityTypesRef.doc(type.id).set({
+                            name: type.name,
+                            icon: type.icon,
+                            category: type.category,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            createdBy: auth.currentUser.uid,
+                            isPredefined: true
+                        });
+                    }
+                    console.log('Predefined activity types initialized');
+                }
+            } catch (error) {
+                console.error('Error initializing activity types:', error);
+            }
+        }

@@ -2173,7 +2173,7 @@
               templateId: template.id,
               generatedMonth: getMonthKey(currentDate),
               createdBy: auth.currentUser.uid,
-              createdByName: currentUserName,
+              createdByName: auth.currentUser.email || 'Unknown User',
               createdAt: new Date(),
               isArchived: false,
               paid: false
@@ -5671,8 +5671,8 @@
                 await templateRef.set({
                     ...formData,
                     templateId: templateId,
-                    createdBy: currentUser.uid,
-                    createdByName: currentUser.displayName,
+                    createdBy: auth.currentUser.uid,
+                    createdByName: auth.currentUser.email || 'Unknown User',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     active: true
                 });
