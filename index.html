@@ -5578,64 +5578,72 @@
         // Recurring Expense Modal Functions
         function showRecurringExpenseModal() {
             document.getElementById('recurringExpenseModal').classList.remove('hidden');
-            // Set today's date as default start date
             document.getElementById('recurringStartDate').valueAsDate = new Date();
         }
 
         function closeRecurringExpenseModal() {
             document.getElementById('recurringExpenseModal').classList.add('hidden');
-            // Clear form
+            clearRecurringExpenseForm();
+        }
+
+        function clearRecurringExpenseForm() {
             document.getElementById('recurringDescription').value = '';
             document.getElementById('recurringAmount').value = '';
-            document.getElementById('recurringCategory').value = '';
-            document.querySelectorAll('input[name="recurringPaidBy"]').forEach(radio => radio.checked = false);
+            document.getElementById('recurringCategory').value = 'school';
             document.getElementById('recurringStartDate').value = '';
             document.getElementById('recurringEndDate').value = '';
-            document.querySelectorAll('input[name="recurringFrequency"]').forEach(radio => radio.checked = false);
+            document.querySelector('input[name="recurringPaidBy"][value="shared"]').checked = true;
+            document.querySelector('input[name="recurringFrequency"][value="monthly"]').checked = true;
         }
 
         async function saveRecurringExpense() {
-            const description = document.getElementById('recurringDescription').value.trim();
-            const amount = parseFloat(document.getElementById('recurringAmount').value);
-            const category = document.getElementById('recurringCategory').value;
-            const paidBy = document.querySelector('input[name="recurringPaidBy"]:checked')?.value;
-            const startDate = document.getElementById('recurringStartDate').value;
-            const endDate = document.getElementById('recurringEndDate').value || null;
-            const frequency = document.querySelector('input[name="recurringFrequency"]:checked')?.value;
+            const formData = {
+                description: document.getElementById('recurringDescription').value,
+                amount: parseFloat(document.getElementById('recurringAmount').value),
+                category: document.getElementById('recurringCategory').value,
+                paidBy: document.querySelector('input[name="recurringPaidBy"]:checked').value,
+                startDate: document.getElementById('recurringStartDate').value,
+                endDate: document.getElementById('recurringEndDate').value || null,
+                frequency: document.querySelector('input[name="recurringFrequency"]:checked').value
+            };
 
-            // Validation
-            if (!description || !amount || !category || !paidBy || !startDate || !frequency) {
-                showNotification('Please fill in all required fields', 'error');
-                return;
-            }
-
-            if (amount <= 0) {
-                showNotification('Amount must be greater than 0', 'error');
+            const validation = validateRecurringExpense(formData);
+            if (!validation.valid) {
+                alert(validation.error);
                 return;
             }
 
             try {
-                await db.collection('families').doc(currentFamily).collection('recurringExpenses').add({
-                    description: description,
-                    amount: amount,
-                    category: category,
-                    paidBy: paidBy,
-                    startDate: startDate,
-                    endDate: endDate,
-                    frequency: frequency,
+                const templateId = `recurring-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const expenses = generateRecurringExpenses({ ...formData, id: templateId });
+
+                const templateRef = db.collection('families').doc(currentFamily).collection('templates').doc(templateId);
+                await templateRef.set({
+                    ...formData,
+                    templateId: templateId,
                     createdBy: currentUser.uid,
-                    createdByName: currentUser.displayName || 'Unknown',
+                    createdByName: currentUser.displayName,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    isActive: true
+                    active: true
                 });
 
-                showNotification('Recurring expense created successfully!', 'success');
+                const batch = db.batch();
+                const expensesCollection = db.collection('families').doc(currentFamily).collection('expenses');
+
+                expenses.forEach(expense => {
+                    const docRef = expensesCollection.doc();
+                    batch.set(docRef, expense);
+                });
+
+                await batch.commit();
+
+                showNotification(`✅ Recurring expense created: ${formData.description} (${formData.frequency})`);
                 closeRecurringExpenseModal();
-                // Reload expenses to show new recurring expense
-                loadExpenses();
+                await loadExpenses();
+
             } catch (error) {
-                console.error('Error creating recurring expense:', error);
-                showNotification(`Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+                showNotification(`❌ Error: ${error.message}`, 'error');
             }
         }
     </script>
