@@ -2093,6 +2093,90 @@
         - createdAt, updatedAt: timestamps
         */
 
+        // ============================================================================
+        // DATE HELPER FUNCTIONS (Task 2)
+        // ============================================================================
+
+        function addMonths(date, months) {
+          const result = new Date(date);
+          result.setMonth(result.getMonth() + months);
+          return result;
+        }
+
+        function getMonthKey(date) {
+          // Returns "2026-09" format
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          return `${year}-${month}`;
+        }
+
+        function formatDateToISO(date) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+
+        function parseISODate(dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          return new Date(year, month - 1, day);
+        }
+
+        // ============================================================================
+        // RECURRING EXPENSE GENERATION FUNCTION (Task 2)
+        // ============================================================================
+
+        function generateRecurringExpenses(template) {
+          const expenses = [];
+          const startDate = parseISODate(template.startDate);
+          const endDate = template.endDate ? parseISODate(template.endDate) : null;
+
+          const intervalMap = { weekly: 7, biweekly: 14, monthly: 30 };
+          const interval = intervalMap[template.frequency] || 30;
+
+          let currentDate = new Date(startDate);
+          const maxEndDate = new Date();
+          maxEndDate.setMonth(maxEndDate.getMonth() + 3);
+
+          while (currentDate <= maxEndDate) {
+            if (endDate && currentDate > endDate) break;
+
+            expenses.push({
+              description: template.description,
+              date: formatDateToISO(currentDate),
+              amount: template.amount,
+              category: template.category,
+              paidBy: template.paidBy,
+              isRecurring: true,
+              templateId: template.id,
+              generatedMonth: getMonthKey(currentDate),
+              createdBy: auth.currentUser.uid,
+              createdByName: currentUserName,
+              createdAt: new Date(),
+              isArchived: false,
+              paid: false
+            });
+
+            currentDate.setDate(currentDate.getDate() + interval);
+          }
+
+          return expenses;
+        }
+
+        // ============================================================================
+        // RECURRING EXPENSE VALIDATION FUNCTION (Task 2)
+        // ============================================================================
+
+        function validateRecurringExpense(formData) {
+          if (!formData.description) return { valid: false, error: "Description required" };
+          if (!formData.amount || formData.amount <= 0) return { valid: false, error: "Valid amount required" };
+          if (!formData.startDate) return { valid: false, error: "Start date required" };
+          if (formData.endDate && new Date(formData.endDate) < new Date(formData.startDate)) {
+            return { valid: false, error: "End date must be after start date" };
+          }
+          return { valid: true };
+        }
+
         function goToStep2() {
             const familyName = document.getElementById('familyName').value.trim();
             const childrenText = document.getElementById('childrenNames').value.trim();
