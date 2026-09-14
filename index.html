@@ -1606,6 +1606,19 @@
                         <button id="recordPaymentFormBtn" onclick="showPaymentForm()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; width: 100%;">Record Payment</button>
                     </div>
 
+                    <!-- Loans & Contributions Section -->
+                    <div class="settlement-card" style="margin-top: 20px; background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="margin: 0;">⚖️ Loans & Contributions</h4>
+                            <button class="btn btn-sm" onclick="showAddAdjustmentModal()" style="padding: 6px 12px; font-size: 0.85em;">+ Add</button>
+                        </div>
+                        <div id="adjustmentsList" style="margin-top: 10px;">
+                            <!-- Adjustments rendered here -->
+                        </div>
+                        <div id="noAdjustmentsMessage" style="color: #666; font-size: 0.9em;">No loans or contributions added yet.</div>
+                        <div id="adjustmentsTotal" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ffe0b2; font-weight: 600; color: #e65100;"></div>
+                    </div>
+
                     <!-- Recurring Expense Dashboard Summary (Task 4) -->
                     <div class="settlement-card" style="margin-top: 20px; background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; border-radius: 4px;">
                         <h4 style="margin-top: 0;">📊 Monthly Recurring Expenses</h4>
