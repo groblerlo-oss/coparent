@@ -4259,6 +4259,33 @@
             totalEl.textContent = `R${total.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
         }
 
+        function validateAdjustment(formData) {
+            if (!formData.name) return { valid: false, error: "Name required" };
+            if (!formData.amount || formData.amount <= 0) return { valid: false, error: "Valid amount required" };
+            if (!formData.from) return { valid: false, error: "From parent required" };
+            if (!formData.to) return { valid: false, error: "To parent required" };
+            if (formData.from === formData.to) return { valid: false, error: "From and To must be different" };
+            return { valid: true };
+        }
+
+        async function loadAdjustments() {
+            if (!currentFamily) return [];
+            try {
+                const snapshot = await db.collection('families').doc(currentFamily)
+                    .collection('adjustments')
+                    .get();
+                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Error loading adjustments:', error);
+                return [];
+            }
+        }
+
+        function calculateAdjustmentsTotals(adjustments, fromPerson, toPerson) {
+            const filtered = adjustments.filter(a => a.from === fromPerson && a.to === toPerson);
+            return filtered.reduce((sum, a) => sum + (a.amount || 0), 0);
+        }
+
         async function loadRecurringTemplates() {
             if (!currentFamily) return;
             const container = document.getElementById('recurringTemplatesList');
