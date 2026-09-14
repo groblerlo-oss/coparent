@@ -82,7 +82,8 @@ service cloud.firestore {
       // Adjustments subcollection - loans and contributions
       match /adjustments/{adjustmentId} {
         allow read: if request.auth.uid != null;
-        allow create, update, delete: if request.auth.uid != null;
+        allow create, update: if request.auth.uid != null;
+        allow delete: if request.auth.uid == resource.data.createdBy;
       }
 
       // Nannies subcollection
