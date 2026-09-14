@@ -4131,7 +4131,13 @@
                     const totalPaid = settlement.settlement.amount - remaining;
                     const progressPercent = (totalPaid / settlement.settlement.amount) * 100;
 
-                    const settlementText = `${settlement.settlement.from} owes ${settlement.settlement.to} ${formatZAR(settlement.settlement.amount)}`;
+                    let adjustmentsTotal = 0;
+                    if (settlement.adjustments && settlement.settlement) {
+                        adjustmentsTotal = calculateAdjustmentsTotals(settlement.adjustments, settlement.settlement.from, settlement.settlement.to);
+                    }
+                    const totalOwed = settlement.settlement.amount + adjustmentsTotal;
+
+                    const settlementText = `${settlement.settlement.from} owes ${settlement.settlement.to} ${formatZAR(totalOwed)}`;
                     document.getElementById('settlementText').innerHTML = settlementText;
 
                     const statusEmoji = remaining <= 0 ? '✅' : '⏳';
@@ -4152,9 +4158,59 @@
                     breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #666;">
                         Fair share each: ${formatZAR(settlement.fairShare)}
                     </div>`;
+
+                    if (adjustmentsTotal > 0) {
+                        breakdownHTML += `<div style="margin: 6px 0; padding: 6px 0; border-top: 1px solid #e8e8e8; padding-left: 8px;"><strong>Adjustments:</strong></div>`;
+                        settlement.adjustments.forEach(adj => {
+                            if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to) {
+                                const freq = adj.frequency === 'monthly' ? '/month' : '';
+                                breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; color: #555;">${adj.name}${freq}: <strong>+${formatZAR(adj.amount)}</strong></div>`;
+                            }
+                        });
+                        breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #e65100; font-weight: 600;">Adjustments subtotal: ${formatZAR(adjustmentsTotal)}</div>`;
+                    }
+                    breakdownHTML += `<div style="margin: 6px 0; padding: 6px 0; border-top: 1px solid #e8e8e8; padding-left: 8px; font-weight: 600; color: #1b5e20;">TOTAL OWED: ${formatZAR(totalOwed)}</div>`;
                     breakdownHTML += `</div>`;
 
                     document.getElementById('settlementText').innerHTML = settlementText + breakdownHTML;
+
+                    // Load and display adjustments
+                    if (settlement.adjustments) {
+                        const adjList = document.getElementById('adjustmentsList');
+                        const noMsg = document.getElementById('noAdjustmentsMessage');
+                        adjList.innerHTML = '';
+                        if (settlement.adjustments.length === 0) {
+                            noMsg.style.display = 'block';
+                        } else {
+                            noMsg.style.display = 'none';
+                            settlement.adjustments.forEach(adj => {
+                                const item = document.createElement('div');
+                                item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #ffe0b2;';
+                                const info = document.createElement('div');
+                                const freq = adj.frequency === 'monthly' ? ' (monthly)' : ' (one-time)';
+                                const name = document.createElement('div');
+                                name.textContent = `${adj.name}${freq}`;
+                                name.style.cssText = 'font-weight: 500; color: #333;';
+                                const amount = document.createElement('div');
+                                amount.textContent = `R${adj.amount.toFixed(2)}`;
+                                amount.style.cssText = 'font-size: 0.9em; color: #666;';
+                                info.appendChild(name);
+                                info.appendChild(amount);
+                                const btnContainer = document.createElement('div');
+                                btnContainer.style.cssText = 'display: flex; gap: 6px;';
+                                const deleteBtn = document.createElement('button');
+                                deleteBtn.textContent = 'Delete';
+                                deleteBtn.style.cssText = 'padding: 4px 8px; background: #d32f2f; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8em;';
+                                deleteBtn.onclick = () => deleteAdjustment(adj.id);
+                                btnContainer.appendChild(deleteBtn);
+                                item.appendChild(info);
+                                item.appendChild(btnContainer);
+                                adjList.appendChild(item);
+                            });
+                            const total = calculateAdjustmentsTotals(settlement.adjustments, '', '');
+                            document.getElementById('adjustmentsTotal').textContent = `Total adjustments: ${formatZAR(total)}`;
+                        }
+                    }
 
                     document.getElementById('settlementProgress').innerHTML = `
                         <div style="margin-bottom: 10px; font-size: 0.95em;">
@@ -4362,6 +4418,94 @@
 
                 showNotification(`✅ Recurring template "${description}" deleted`, 'success');
                 loadExpenses();
+            } catch (error) {
+                showNotification(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showAddAdjustmentModal() {
+            const modal = document.getElementById('adjustmentModal');
+            modal.classList.remove('hidden');
+            if (currentFamily) {
+                db.collection('families').doc(currentFamily).get().then(doc => {
+                    const parents = doc.data().parents || [];
+                    const fromSelect = document.getElementById('adjustmentFrom');
+                    const toSelect = document.getElementById('adjustmentTo');
+                    fromSelect.innerHTML = '<option value="">Select parent...</option>';
+                    toSelect.innerHTML = '<option value="">Select parent...</option>';
+                    parents.forEach(parent => {
+                        if (parent.name) {
+                            fromSelect.innerHTML += `<option value="${parent.name}">${parent.name}</option>`;
+                            toSelect.innerHTML += `<option value="${parent.name}">${parent.name}</option>`;
+                        }
+                    });
+                });
+            }
+            clearAdjustmentForm();
+        }
+        function closeAdjustmentModal() {
+            document.getElementById('adjustmentModal').classList.add('hidden');
+            clearAdjustmentForm();
+        }
+        function clearAdjustmentForm() {
+            document.getElementById('adjustmentName').value = '';
+            document.getElementById('adjustmentAmount').value = '';
+            document.querySelector('input[name="adjustmentType"][value="contribution"]').checked = true;
+            document.querySelector('input[name="adjustmentFrequency"][value="monthly"]').checked = true;
+            document.getElementById('adjustmentFrom').value = '';
+            document.getElementById('adjustmentTo').value = '';
+            toggleFrequencyField();
+        }
+        function toggleFrequencyField() {
+            const type = document.querySelector('input[name="adjustmentType"]:checked').value;
+            const frequencyGroup = document.getElementById('frequencyGroup');
+            frequencyGroup.style.display = type === 'contribution' ? 'block' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const typeRadios = document.querySelectorAll('input[name="adjustmentType"]');
+            typeRadios.forEach(radio => {
+                radio.addEventListener('change', toggleFrequencyField);
+            });
+        });
+        async function saveAdjustment() {
+            const formData = {
+                name: document.getElementById('adjustmentName').value,
+                amount: parseFloat(document.getElementById('adjustmentAmount').value),
+                type: document.querySelector('input[name="adjustmentType"]:checked').value,
+                frequency: document.querySelector('input[name="adjustmentFrequency"]:checked').value,
+                from: document.getElementById('adjustmentFrom').value,
+                to: document.getElementById('adjustmentTo').value
+            };
+            const validation = validateAdjustment(formData);
+            if (!validation.valid) {
+                alert(validation.error);
+                return;
+            }
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('adjustments')
+                    .add({
+                        ...formData,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        createdBy: auth.currentUser.uid
+                    });
+                showNotification(`✅ ${formData.name} added`, 'success');
+                closeAdjustmentModal();
+                await loadExpenses();
+            } catch (error) {
+                showNotification(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        async function deleteAdjustment(adjustmentId) {
+            if (!confirm('Delete this adjustment?')) return;
+            try {
+                await db.collection('families').doc(currentFamily)
+                    .collection('adjustments')
+                    .doc(adjustmentId)
+                    .delete();
+                showNotification('✅ Adjustment deleted', 'success');
+                await loadExpenses();
             } catch (error) {
                 showNotification(`❌ Error: ${error.message}`, 'error');
             }
