@@ -3969,7 +3969,9 @@
                 const paymentsSnap = await db.collection('families').doc(familyId).collection('payments').get();
                 const payments = paymentsSnap.docs.map(doc => doc.data());
 
-                return { totalExpenses, fairShare, balances, settlement, totalPaid, payments: payments };
+                const adjustments = await db.collection('families').doc(familyId).collection('adjustments').get();
+                const adjustmentsList = adjustments.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                return { totalExpenses, fairShare, balances, settlement, totalPaid, payments: payments, adjustments: adjustmentsList };
             } catch (error) {
                 console.error('Error calculating settlement:', error);
                 return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
