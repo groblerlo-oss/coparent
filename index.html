@@ -4500,7 +4500,6 @@
             }
         }
         async function deleteAdjustment(adjustmentId) {
-            if (!confirm('Delete this adjustment?')) return;
             try {
                 await db.collection('families').doc(currentFamily)
                     .collection('adjustments')
