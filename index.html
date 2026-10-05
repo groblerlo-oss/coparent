@@ -4190,7 +4190,12 @@
                                 const item = document.createElement('div');
                                 item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #ffe0b2;';
                                 const info = document.createElement('div');
-                                const freq = adj.frequency === 'monthly' ? ' (monthly)' : ' (one-time)';
+                                let freq = '';
+                                if (adj.type === 'loan') {
+                                    freq = ' (one-time)';
+                                } else if (adj.type === 'contribution') {
+                                    freq = adj.frequency === 'monthly' ? ' (monthly)' : ' (one-time)';
+                                }
                                 const name = document.createElement('div');
                                 name.textContent = `${adj.name}${freq}`;
                                 name.style.cssText = 'font-weight: 500; color: #333;';
@@ -4225,6 +4230,15 @@
                         </div>
                         <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
                             Remaining: <strong>${formatZAR(remaining)}</strong>
+                            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #777;">
+                                ${remaining > 0 ? `
+                                    <div style="margin: 4px 0;">Base: ${formatZAR(Math.max(0, settlement.settlement.amount - totalPaid))}</div>
+                                    ${settlement.adjustments && settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to).map(adj => {
+                                        const adjRemaining = Math.max(0, adj.amount - Math.max(0, totalPaid - settlement.settlement.amount));
+                                        return `<div style="margin: 4px 0;">${adj.name}: ${formatZAR(adjRemaining)}</div>`;
+                                    }).join('')}
+                                ` : 'All settled'}
+                            </div>
                         </div>
                     `;
                     document.getElementById('settlementText').style.display = 'block';
