@@ -3978,7 +3978,7 @@
             }
         }
 
-        async function calculateRemainingBalance(familyId, settlement) {
+        async function calculateRemainingBalance(familyId, settlement, totalAmount = null) {
             if (!settlement) return 0;
 
             const paymentsSnap = await db.collection('families').doc(familyId)
@@ -3989,8 +3989,9 @@
 
             const payments = paymentsSnap.docs.map(doc => doc.data());
             const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+            const amountToUse = totalAmount !== null ? totalAmount : settlement.amount;
 
-            return Math.max(0, settlement.amount - totalPaid);
+            return Math.max(0, amountToUse - totalPaid);
         }
 
         async function saveExpense() {
@@ -4129,15 +4130,15 @@
                 const familyDoc = await db.collection('families').doc(currentFamily).get();
 
                 if (settlement.settlement) {
-                    const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement);
-                    const totalPaid = settlement.settlement.amount - remaining;
-                    const progressPercent = (totalPaid / settlement.settlement.amount) * 100;
-
                     let adjustmentsTotal = 0;
                     if (settlement.adjustments && settlement.settlement) {
                         adjustmentsTotal = calculateAdjustmentsTotals(settlement.adjustments, settlement.settlement.from, settlement.settlement.to);
                     }
                     const totalOwed = settlement.settlement.amount + adjustmentsTotal;
+
+                    const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement, totalOwed);
+                    const totalPaid = totalOwed - remaining;
+                    const progressPercent = (totalPaid / totalOwed) * 100;
 
                     const settlementText = `${settlement.settlement.from} owes ${settlement.settlement.to} ${formatZAR(totalOwed)}`;
                     document.getElementById('settlementText').innerHTML = settlementText;
@@ -4256,9 +4257,15 @@
 
                 // Pre-fill payment form if there's an active settlement
                 if (settlement.settlement) {
+                    let adjustmentsTotal = 0;
+                    if (settlement.adjustments) {
+                        adjustmentsTotal = calculateAdjustmentsTotals(settlement.adjustments, settlement.settlement.from, settlement.settlement.to);
+                    }
+                    const totalOwed = settlement.settlement.amount + adjustmentsTotal;
+
                     document.getElementById('paymentFrom').value = settlement.settlement.from;
                     document.getElementById('paymentTo').value = settlement.settlement.to;
-                    document.getElementById('paymentAmount').value = await calculateRemainingBalance(currentFamily, settlement.settlement);
+                    document.getElementById('paymentAmount').value = await calculateRemainingBalance(currentFamily, settlement.settlement, totalOwed);
                     document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
                 }
 
@@ -4742,7 +4749,13 @@
 
             const settlement = await calculateSettlement(currentFamily);
             if (settlement.settlement) {
-                const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement);
+                let adjustmentsTotal = 0;
+                if (settlement.adjustments) {
+                    adjustmentsTotal = calculateAdjustmentsTotals(settlement.adjustments, settlement.settlement.from, settlement.settlement.to);
+                }
+                const totalOwed = settlement.settlement.amount + adjustmentsTotal;
+
+                const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement, totalOwed);
 
                 if (amount > remaining) {
                     document.getElementById('paymentValidationWarning').textContent =
