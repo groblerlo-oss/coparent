@@ -4232,11 +4232,19 @@
                             Remaining: <strong>${formatZAR(remaining)}</strong>
                             <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #777;">
                                 ${remaining > 0 ? `
-                                    <div style="margin: 4px 0;">Base: ${formatZAR(Math.max(0, settlement.settlement.amount - totalPaid))}</div>
-                                    ${settlement.adjustments && settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to).map(adj => {
+                                    <div style="margin: 4px 0;">Base expenses: ${formatZAR(Math.max(0, settlement.settlement.amount - totalPaid))}</div>
+                                    ${settlement.adjustments && settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to && a.type === 'loan').map(adj => {
                                         const adjRemaining = Math.max(0, adj.amount - Math.max(0, totalPaid - settlement.settlement.amount));
-                                        return `<div style="margin: 4px 0;">${adj.name}: ${formatZAR(adjRemaining)}</div>`;
+                                        return `<div style="margin: 4px 0;">${adj.name} (debt): ${formatZAR(adjRemaining)}</div>`;
                                     }).join('')}
+                                    ${settlement.adjustments && settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to && a.type === 'contribution' && a.frequency === 'monthly').length > 0 ? `
+                                        <div style="margin: 4px 0; font-size: 0.9em; color: #999;">
+                                            Monthly (resets each month):
+                                            ${settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to && a.type === 'contribution' && a.frequency === 'monthly').map(adj =>
+                                                `<div style="margin-left: 8px; margin-top: 2px;">${adj.name}: ${formatZAR(adj.amount)}</div>`
+                                            ).join('')}
+                                        </div>
+                                    ` : ''}
                                 ` : 'All settled'}
                             </div>
                         </div>
@@ -4362,6 +4370,32 @@
 
         function calculateAdjustmentsTotals(adjustments, fromPerson, toPerson) {
             const filtered = adjustments.filter(a => a.from === fromPerson && a.to === toPerson);
+            return filtered.reduce((sum, a) => {
+                // Monthly contributions: only count once per month, don't accumulate
+                if (a.type === 'contribution' && a.frequency === 'monthly') {
+                    return sum + (a.amount || 0);
+                }
+                // One-time loans: accumulate as debt
+                return sum + (a.amount || 0);
+            }, 0);
+        }
+
+        function getOneTimeLoanTotal(adjustments, fromPerson, toPerson) {
+            const filtered = adjustments.filter(a =>
+                a.from === fromPerson &&
+                a.to === toPerson &&
+                a.type === 'loan'
+            );
+            return filtered.reduce((sum, a) => sum + (a.amount || 0), 0);
+        }
+
+        function getMonthlyContributionTotal(adjustments, fromPerson, toPerson) {
+            const filtered = adjustments.filter(a =>
+                a.from === fromPerson &&
+                a.to === toPerson &&
+                a.type === 'contribution' &&
+                a.frequency === 'monthly'
+            );
             return filtered.reduce((sum, a) => sum + (a.amount || 0), 0);
         }
 
