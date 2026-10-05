@@ -4210,7 +4210,7 @@
                                 item.appendChild(btnContainer);
                                 adjList.appendChild(item);
                             });
-                            const total = calculateAdjustmentsTotals(settlement.adjustments, '', '');
+                            const total = calculateAdjustmentsTotals(settlement.adjustments, settlement.settlement.from, settlement.settlement.to);
                             document.getElementById('adjustmentsTotal').textContent = `Total adjustments: ${formatZAR(total)}`;
                         }
                     }
