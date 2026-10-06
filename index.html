@@ -2029,6 +2029,12 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="recurringSplit">Split % (paid by person)</label>
+                    <input type="number" id="recurringSplit" placeholder="50" min="0" max="100" value="50" step="1">
+                    <small style="display: block; margin-top: 5px; color: #666;">Default 50%. Set to 100% if fully paid by one person, 0% if fully by other.</small>
+                </div>
+
+                <div class="form-group">
                     <label for="recurringStartDate">Start Date</label>
                     <input type="date" id="recurringStartDate">
                 </div>
@@ -6341,6 +6347,7 @@
                 amount: parseFloat(document.getElementById('recurringAmount').value),
                 category: document.getElementById('recurringCategory').value,
                 paidBy: document.getElementById('recurringPaidBy').value,
+                splitPercent: parseInt(document.getElementById('recurringSplit').value) || 50,
                 startDate: document.getElementById('recurringStartDate').value,
                 endDate: document.getElementById('recurringEndDate').value || null,
                 frequency: document.querySelector('input[name="recurringFrequency"]:checked').value
