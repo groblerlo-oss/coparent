@@ -4247,18 +4247,27 @@
                             noMsg.style.display = 'block';
                         } else {
                             noMsg.style.display = 'none';
+                            // Group by month for monthly entries
+                            const groupedAdj = {};
                             settlement.adjustments.forEach(adj => {
+                                const key = adj.month ? `${adj.name}-${adj.month}` : adj.id;
+                                groupedAdj[key] = adj;
+                            });
+
+                            Object.values(groupedAdj).forEach(adj => {
                                 const item = document.createElement('div');
                                 item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #ffe0b2;';
                                 const info = document.createElement('div');
                                 let freq = '';
+                                let monthLabel = '';
                                 if (adj.type === 'loan') {
                                     freq = ' (one-time)';
                                 } else if (adj.type === 'contribution') {
                                     freq = adj.frequency === 'monthly' ? ' (monthly)' : ' (one-time)';
+                                    if (adj.month) monthLabel = ` - ${adj.month}${adj.paid ? ' ✅' : ''}`;
                                 }
                                 const name = document.createElement('div');
-                                name.textContent = `${adj.name}${freq}`;
+                                name.textContent = `${adj.name}${freq}${monthLabel}`;
                                 name.style.cssText = 'font-weight: 500; color: #333;';
                                 const amount = document.createElement('div');
                                 amount.textContent = `R${adj.amount.toFixed(2)}`;
@@ -4292,20 +4301,29 @@
                         <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
                             ${overpayment > 0 ? `💰 Credit: <strong>${formatZAR(overpayment)}</strong>` : `Remaining: <strong>${formatZAR(remaining)}</strong>`}
                             <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #777;">
-                                ${remaining > 0 ? `
-                                    <div style="margin: 4px 0;">Base expenses: ${formatZAR(Math.max(0, settlement.settlement.amount - totalPaid))}</div>
-                                    ${settlement.adjustments && settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to && a.type === 'loan').map(adj => {
-                                        const adjRemaining = Math.max(0, adj.amount - Math.max(0, totalPaid - settlement.settlement.amount));
-                                        return `<div style="margin: 4px 0;">${adj.name} (debt): ${formatZAR(adjRemaining)}</div>`;
-                                    }).join('')}
-                                    ${settlement.adjustments && settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to && a.type === 'contribution' && a.frequency === 'monthly').length > 0 ? `
-                                        <div style="margin: 4px 0; font-size: 0.9em; color: #999;">
-                                            Monthly (resets each month):
-                                            ${settlement.adjustments.filter(a => a.from === settlement.settlement.from && a.to === settlement.settlement.to && a.type === 'contribution' && a.frequency === 'monthly').map(adj =>
-                                                `<div style="margin-left: 8px; margin-top: 2px;">${adj.name}: ${formatZAR(adj.amount)}</div>`
-                                            ).join('')}
-                                        </div>
-                                    ` : ''}
+                                ${overpayment > 0 ? `💰 Credit applied to next month` : remaining > 0 ? `
+                                    ${(() => {
+                                        const allocation = calculatePaymentAllocation(
+                                            settlement.settlement.amount,
+                                            getOneTimeLoanTotal(settlement.adjustments, settlement.settlement.from, settlement.settlement.to),
+                                            getMonthlyContributionTotal(settlement.adjustments, settlement.settlement.from, settlement.settlement.to),
+                                            totalPaid
+                                        );
+                                        let breakdown = '';
+                                        if (allocation.toBase > 0) breakdown += `<div style="margin: 4px 0;">Base paid: ${formatZAR(allocation.toBase)}</div>`;
+                                        if (allocation.toLoans > 0) breakdown += `<div style="margin: 4px 0;">Loans paid: ${formatZAR(allocation.toLoans)}</div>`;
+                                        if (allocation.toContributions > 0) breakdown += `<div style="margin: 4px 0;">Contributions paid: ${formatZAR(allocation.toContributions)}</div>`;
+
+                                        const baseRemaining = Math.max(0, settlement.settlement.amount - allocation.toBase);
+                                        const loansRemaining = Math.max(0, getOneTimeLoanTotal(settlement.adjustments, settlement.settlement.from, settlement.settlement.to) - allocation.toLoans);
+                                        const contribRemaining = Math.max(0, getMonthlyContributionTotal(settlement.adjustments, settlement.settlement.from, settlement.settlement.to) - allocation.toContributions);
+
+                                        if (baseRemaining > 0) breakdown += `<div style="margin: 4px 0; color: #d32f2f;">Base remaining: ${formatZAR(baseRemaining)}</div>`;
+                                        if (loansRemaining > 0) breakdown += `<div style="margin: 4px 0; color: #d32f2f;">Loans remaining: ${formatZAR(loansRemaining)}</div>`;
+                                        if (contribRemaining > 0) breakdown += `<div style="margin: 4px 0; color: #d32f2f;">Monthly remaining: ${formatZAR(contribRemaining)}</div>`;
+
+                                        return breakdown;
+                                    })()}
                                 ` : 'All settled'}
                             </div>
                         </div>
