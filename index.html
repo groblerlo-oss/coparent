@@ -4262,14 +4262,17 @@
                             noMsg.style.display = 'block';
                         } else {
                             noMsg.style.display = 'none';
-                            // Filter to show ONLY monthly entries with month field, and one-time loans
-                            // Hide old recurring entries that don't have month tracking
+                            // Get current month (YYYY-MM format)
+                            const now = new Date();
+                            const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+                            // Filter to show: current month lunchbox + all one-time loans
                             const filteredAdj = settlement.adjustments.filter(adj => {
-                                // For monthly contributions: only show if it has a month field
+                                // For monthly contributions: only show current month
                                 if (adj.type === 'contribution' && adj.frequency === 'monthly') {
-                                    return !!adj.month; // Must have month field
+                                    return adj.month === currentMonth; // Show only current month
                                 }
-                                // For one-time loans: show only if they don't have a month (old style)
+                                // For one-time loans: show only if they don't have a month
                                 if (adj.type === 'loan') {
                                     return !adj.month; // One-time loans shouldn't have month
                                 }
