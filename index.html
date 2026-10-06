@@ -4167,6 +4167,9 @@
                 const familyDoc = await db.collection('families').doc(currentFamily).get();
 
                 if (settlement.settlement) {
+                    // Ensure monthly lunchbox entry exists
+                    await ensureMonthlyLunchboxEntry(settlement.settlement.from, settlement.settlement.to, 500);
+
                     let adjustmentsTotal = 0;
                     if (settlement.adjustments && settlement.settlement) {
                         adjustmentsTotal = calculateAdjustmentsTotals(settlement.adjustments, settlement.settlement.from, settlement.settlement.to);
@@ -4175,9 +4178,25 @@
 
                     const remaining = await calculateRemainingBalance(currentFamily, settlement.settlement, totalOwed);
                     const totalPaid = totalOwed - remaining;
-                    const progressPercent = (totalPaid / totalOwed) * 100;
+                    const overpayment = Math.max(0, totalPaid - totalOwed);
+                    const progressPercent = totalOwed > 0 ? (totalPaid / totalOwed) * 100 : 0;
 
-                    const settlementText = `${settlement.settlement.from} owes ${settlement.settlement.to} ${formatZAR(totalOwed)}`;
+                    // Handle settlement flipping if overpayment
+                    let displayFrom = settlement.settlement.from;
+                    let displayTo = settlement.settlement.to;
+                    let displayAmount = totalOwed;
+                    let isCredit = false;
+
+                    if (overpayment > 0) {
+                        displayFrom = settlement.settlement.to;
+                        displayTo = settlement.settlement.from;
+                        displayAmount = overpayment;
+                        isCredit = true;
+                    }
+
+                    const settlementText = isCredit
+                        ? `✅ CREDIT: ${displayFrom} owes ${displayTo} ${formatZAR(displayAmount)}`
+                        : `${displayFrom} owes ${displayTo} ${formatZAR(displayAmount)}`;
                     document.getElementById('settlementText').innerHTML = settlementText;
 
                     const statusEmoji = remaining <= 0 ? '✅' : '⏳';
@@ -4209,7 +4228,12 @@
                         });
                         breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #e65100; font-weight: 600;">Adjustments subtotal: ${formatZAR(adjustmentsTotal)}</div>`;
                     }
-                    breakdownHTML += `<div style="margin: 6px 0; padding: 6px 0; border-top: 1px solid #e8e8e8; padding-left: 8px; font-weight: 600; color: #1b5e20;">TOTAL OWED: ${formatZAR(totalOwed)}</div>`;
+
+                    if (overpayment > 0) {
+                        breakdownHTML += `<div style="margin: 6px 0; padding: 6px 0; border-top: 1px solid #e8e8e8; padding-left: 8px; font-weight: 600; color: #4caf50;">💰 CREDIT (Overpayment): ${formatZAR(overpayment)}</div>`;
+                    } else {
+                        breakdownHTML += `<div style="margin: 6px 0; padding: 6px 0; border-top: 1px solid #e8e8e8; padding-left: 8px; font-weight: 600; color: #1b5e20;">TOTAL OWED: ${formatZAR(totalOwed)}</div>`;
+                    }
                     breakdownHTML += `</div>`;
 
                     document.getElementById('settlementText').innerHTML = settlementText + breakdownHTML;
@@ -4259,14 +4283,14 @@
 
                     document.getElementById('settlementProgress').innerHTML = `
                         <div style="margin-bottom: 10px; font-size: 0.95em;">
-                            <strong>${statusEmoji} Progress:</strong> Paid ${formatZAR(totalPaid)} of ${formatZAR(settlement.settlement.amount)}
-                            ${remaining <= 0 ? '(SETTLED)' : `(${Math.round(progressPercent)}%)`}
+                            <strong>${statusEmoji} Progress:</strong> Paid ${formatZAR(totalPaid)} of ${formatZAR(totalOwed)}
+                            ${overpayment > 0 ? `(OVERPAID by ${formatZAR(overpayment)})` : remaining <= 0 ? '(SETTLED)' : `(${Math.round(progressPercent)}%)`}
                         </div>
                         <div style="width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden;">
-                            <div style="height: 100%; background: ${remaining <= 0 ? '#4caf50' : '#667eea'}; width: ${Math.min(progressPercent, 100)}%; transition: width 0.3s;"></div>
+                            <div style="height: 100%; background: ${overpayment > 0 ? '#4caf50' : remaining <= 0 ? '#4caf50' : '#667eea'}; width: ${Math.min(progressPercent, 100)}%; transition: width 0.3s;"></div>
                         </div>
                         <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
-                            Remaining: <strong>${formatZAR(remaining)}</strong>
+                            ${overpayment > 0 ? `💰 Credit: <strong>${formatZAR(overpayment)}</strong>` : `Remaining: <strong>${formatZAR(remaining)}</strong>`}
                             <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #777;">
                                 ${remaining > 0 ? `
                                     <div style="margin: 4px 0;">Base expenses: ${formatZAR(Math.max(0, settlement.settlement.amount - totalPaid))}</div>
