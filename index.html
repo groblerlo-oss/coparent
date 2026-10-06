@@ -4436,6 +4436,150 @@
             return filtered.reduce((sum, a) => sum + (a.amount || 0), 0);
         }
 
+        // ===== NEW: Monthly Payment Tracking System =====
+        function getCurrentMonthString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            return `${year}-${month}`;
+        }
+
+        async function ensureMonthlyLunchboxEntry(fromPerson, toPerson, amount = 500) {
+            // Get or create a monthly lunchbox entry for current month
+            const currentMonth = getCurrentMonthString();
+            const adjustmentsSnap = await db.collection('families').doc(currentFamily)
+                .collection('adjustments')
+                .where('from', '==', fromPerson)
+                .where('to', '==', toPerson)
+                .where('type', '==', 'contribution')
+                .where('name', '==', 'Lunchbox contribution')
+                .where('month', '==', currentMonth)
+                .get();
+
+            if (adjustmentsSnap.empty) {
+                // Create entry for this month
+                await db.collection('families').doc(currentFamily)
+                    .collection('adjustments').add({
+                        name: 'Lunchbox contribution',
+                        amount: amount,
+                        type: 'contribution',
+                        frequency: 'monthly',
+                        from: fromPerson,
+                        to: toPerson,
+                        month: currentMonth,
+                        paid: false,
+                        createdBy: currentUser.uid,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+            }
+        }
+
+        function calculatePaymentAllocation(baseAmount, oneTimeLoanAmount, monthlyContributionAmount, paymentAmount) {
+            // Allocate payment: base → loans → contributions
+            let remaining = paymentAmount;
+            let allocation = {
+                toBase: 0,
+                toLoans: 0,
+                toContributions: 0,
+                credit: 0
+            };
+
+            // Apply to base expenses first
+            const basePayment = Math.min(remaining, baseAmount);
+            allocation.toBase = basePayment;
+            remaining -= basePayment;
+
+            // Apply to one-time loans
+            const loanPayment = Math.min(remaining, oneTimeLoanAmount);
+            allocation.toLoans = loanPayment;
+            remaining -= loanPayment;
+
+            // Apply to monthly contributions
+            const contributionPayment = Math.min(remaining, monthlyContributionAmount);
+            allocation.toContributions = contributionPayment;
+            remaining -= contributionPayment;
+
+            // Overpayment becomes credit
+            allocation.credit = remaining;
+
+            return allocation;
+        }
+
+        async function calculateSettlementV2(familyId) {
+            // New settlement calculation with monthly tracking and credits
+            try {
+                const expensesSnap = await db.collection('families').doc(familyId).collection('expenses').get();
+                const familyDoc = await db.collection('families').doc(familyId).get();
+
+                const expenses = expensesSnap.docs.map(doc => doc.data());
+                const parents = familyDoc.data().parents || [];
+
+                if (expenses.length === 0 || parents.length === 0) {
+                    return { settlement: null, components: {} };
+                }
+
+                // Calculate base settlement (expenses only)
+                let totalExpenses = 0;
+                let paidByParent = {};
+                expenses.forEach(exp => {
+                    totalExpenses += exp.amount;
+                    paidByParent[exp.paidBy] = (paidByParent[exp.paidBy] || 0) + exp.amount;
+                });
+
+                const fairShare = totalExpenses / parents.length;
+                let balances = {};
+                parents.forEach(parent => {
+                    const paid = paidByParent[parent.name] || 0;
+                    balances[parent.name] = paid - fairShare;
+                });
+
+                let baseSettlement = null;
+                for (const [name, balance] of Object.entries(balances)) {
+                    if (balance < 0) {
+                        const owed = Math.abs(balance);
+                        for (const [creditor, creditorBalance] of Object.entries(balances)) {
+                            if (creditor !== name && creditorBalance > 0) {
+                                baseSettlement = {
+                                    from: name,
+                                    to: creditor,
+                                    amount: Math.min(owed, creditorBalance)
+                                };
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                // Get adjustments
+                const adjustmentsSnap = await db.collection('families').doc(familyId).collection('adjustments').get();
+                const adjustments = adjustmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                // Calculate components
+                let components = {
+                    base: baseSettlement ? baseSettlement.amount : 0,
+                    oneTimeLoan: 0,
+                    monthlyContribution: 0,
+                    credit: 0
+                };
+
+                if (baseSettlement) {
+                    components.oneTimeLoan = getOneTimeLoanTotal(adjustments, baseSettlement.from, baseSettlement.to);
+                    components.monthlyContribution = getMonthlyContributionTotal(adjustments, baseSettlement.from, baseSettlement.to);
+
+                    // Ensure monthly lunchbox entry exists
+                    if (components.monthlyContribution > 0) {
+                        await ensureMonthlyLunchboxEntry(baseSettlement.from, baseSettlement.to, 500);
+                    }
+                }
+
+                return { baseSettlement, adjustments, components };
+            } catch (error) {
+                console.error('Error calculating settlement V2:', error);
+                return { baseSettlement: null, adjustments: [], components: {} };
+            }
+        }
+
         async function loadRecurringTemplates() {
             if (!currentFamily) return;
             const container = document.getElementById('recurringTemplatesList');
