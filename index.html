@@ -3972,7 +3972,7 @@
                 const expenseSplits = familyDoc.data().expenseSplits || {};
 
                 if (expenses.length === 0 || parents.length === 0) {
-                    return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
+                    return { totalExpenses: 0, fairShares: {}, balances: {}, settlement: null, totalPaid: {}, payments: [], adjustments: [] };
                 }
 
                 let totalExpenses = 0;
@@ -4017,10 +4017,10 @@
 
                 const adjustments = await db.collection('families').doc(familyId).collection('adjustments').get();
                 const adjustmentsList = adjustments.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                return { totalExpenses, fairShare, balances, settlement, totalPaid, payments: payments, adjustments: adjustmentsList };
+                return { totalExpenses, fairShares, balances, settlement, totalPaid, payments: payments, adjustments: adjustmentsList };
             } catch (error) {
                 console.error('Error calculating settlement:', error);
-                return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
+                return { totalExpenses: 0, fairShares: {}, balances: {}, settlement: null, totalPaid: {}, payments: [], adjustments: [] };
             }
         }
 
@@ -4217,16 +4217,14 @@
                     breakdownHTML += `<div style="margin-bottom: 6px;"><strong>Breakdown:</strong></div>`;
                     Object.entries(settlement.totalPaid).forEach(([person, paid]) => {
                         const personColor = person === 'Louis' ? '#667eea' : '#9c27b0';
+                        const fairShare = settlement.fairShares[person] || 0;
                         breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; background: ${personColor}15; padding: 6px; border-radius: 3px; border-left: 3px solid ${personColor};">
                             <span style="color: ${personColor}; font-weight: 600;">${person}</span> paid: <strong style="color: ${personColor};">${formatZAR(paid)}</strong>
-                            <div style="font-size: 0.9em; margin-top: 2px; color: #666;">50/50 fair share: ${formatZAR(settlement.fairShare)}</div>
+                            <div style="font-size: 0.9em; margin-top: 2px; color: #666;">Fair share: ${formatZAR(fairShare)}</div>
                         </div>`;
                     });
                     breakdownHTML += `<div style="margin: 6px 0; padding-top: 6px; border-top: 1px solid #e8e8e8; padding-left: 8px; font-weight: 600;">
                         Total expenses: <strong>${formatZAR(settlement.totalExpenses)}</strong>
-                    </div>`;
-                    breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #666;">
-                        Fair share each (50/50): <strong>${formatZAR(settlement.fairShare)}</strong>
                     </div>`;
 
                     if (adjustmentsTotal > 0) {
