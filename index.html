@@ -4257,6 +4257,7 @@
                         const adjList = document.getElementById('adjustmentsList');
                         const noMsg = document.getElementById('noAdjustmentsMessage');
                         adjList.innerHTML = '';
+                        window.shownAdjustments = new Set();
                         if (settlement.adjustments.length === 0) {
                             noMsg.style.display = 'block';
                         } else {
@@ -4287,6 +4288,14 @@
                                     freq = adj.frequency === 'monthly' ? ' (monthly)' : ' (one-time)';
                                     if (adj.month) monthLabel = ` - ${adj.month}${adj.paid ? ' ✅' : ''}`;
                                 }
+                                // De-duplicate display: skip if same name/month already shown
+                                const displayKey = `${adj.name}-${adj.month || 'onetime'}`;
+                                if (window.shownAdjustments && window.shownAdjustments.has(displayKey)) {
+                                    return;
+                                }
+                                if (!window.shownAdjustments) window.shownAdjustments = new Set();
+                                window.shownAdjustments.add(displayKey);
+
                                 const name = document.createElement('div');
                                 name.textContent = `${adj.name}${freq}${monthLabel}`;
                                 name.style.cssText = 'font-weight: 500; color: #333;';
