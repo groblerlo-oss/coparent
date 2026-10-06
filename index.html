@@ -1449,7 +1449,6 @@
         <div class="content">
             <div class="tabs" id="mainTabs">
                 <button class="tab active" onclick="switchTab('calendar')">📅 Calendar</button>
-                <button class="tab parent-only" onclick="switchTab('weeklySchedule')">📅 Weekly Schedule</button>
                 <button class="tab parent-only" onclick="switchTab('expenses')">💰 Expenses</button>
                 <button class="tab parent-only" onclick="switchTab('messages')">💬 Messages</button>
                 <button class="tab parent-only" onclick="switchTab('documents')">📄 Documents</button>
@@ -1495,21 +1494,6 @@
 
                 <!-- Event List View (Optional - for viewing filtered events) -->
                 <div id="calendarEventsList" style="margin-top: 20px;"></div>
-            </div>
-
-            <!-- Weekly Schedule Tab (Parents Only) -->
-            <div id="weeklySchedule" class="tab-content parent-only">
-                <h2>Weekly Activity Schedule</h2>
-
-                <button class="schedule-jump-to-today" onclick="jumpToToday()">Jump to Today</button>
-
-                <div class="schedule-weeks-container" id="scheduleWeeksContainer">
-                    <!-- Weeks populated by JavaScript -->
-                </div>
-
-                <div id="scheduleNannyNote" style="display: none; background: #e7f3ff; border-left: 4px solid #2196F3; padding: 15px; margin: 15px 0; border-radius: 4px;">
-                    <p><strong>👶 Nanny Note:</strong> You can view activities, but cannot create, edit, or delete activities. Contact parents to make changes.</p>
-                </div>
             </div>
 
             <!-- Expenses Tab (Parents Only) -->
@@ -5040,18 +5024,7 @@
         // Update switchTab to handle weekly schedule
         const originalSwitchTab = switchTab;
         window.switchTab = function(tabName) {
-            if (tabName === 'weeklySchedule') {
-                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-                event.target.classList.add('active');
-                document.getElementById(tabName).classList.add('active');
-
-                // Task 4: Call renderWeeklySchedule when switching to weeklySchedule tab
-                renderWeeklySchedule();
-            } else {
-                originalSwitchTab.call(this, tabName);
-            }
+            originalSwitchTab.call(this, tabName);
 
             // Load nanny list when switching to settings (Task 9)
             if (tabName === 'settings') {
