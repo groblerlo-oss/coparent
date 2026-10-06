@@ -3969,6 +3969,7 @@
 
                 const expenses = expensesSnap.docs.map(doc => doc.data());
                 const parents = familyDoc.data().parents || [];
+                const expenseSplits = familyDoc.data().expenseSplits || {};
 
                 if (expenses.length === 0 || parents.length === 0) {
                     return { totalExpenses: 0, fairShare: 0, balances: {}, settlement: null, totalPaid: {}, payments: [] };
@@ -3981,14 +3982,16 @@
                     paidByParent[exp.paidBy] = (paidByParent[exp.paidBy] || 0) + exp.amount;
                 });
 
-                const fairShare = totalExpenses / parents.length;
                 let balances = {};
                 let totalPaid = {};
+                let fairShares = {};
 
                 parents.forEach(parent => {
                     const paid = paidByParent[parent.name] || 0;
                     totalPaid[parent.name] = paid;
-                    balances[parent.name] = paid - fairShare;
+                    const splitPercent = expenseSplits[parent.name] !== undefined ? expenseSplits[parent.name] : 50;
+                    fairShares[parent.name] = totalExpenses * (splitPercent / 100);
+                    balances[parent.name] = paid - fairShares[parent.name];
                 });
 
                 let settlement = null;
@@ -4929,45 +4932,6 @@
             }
         }
 
-        async function saveSplitChanges() {
-            try {
-                const inputs = document.querySelectorAll('#parentsSplitContainer input');
-                const parents = [];
-                let totalSplit = 0;
-
-                for (let i = 0; i < inputs.length; i += 2) {
-                    const name = inputs[i].value.trim();
-                    const split = parseFloat(inputs[i + 1].value) || 0;
-
-                    if (!name) {
-                        showNotification('Please enter all parent names', 'error');
-                        return;
-                    }
-
-                    if (split <= 0 || split > 100) {
-                        showNotification('Split percentages must be between 0 and 100', 'error');
-                        return;
-                    }
-
-                    parents.push({name, split});
-                    totalSplit += split;
-                }
-
-                if (Math.abs(totalSplit - 100) > 0.01) {
-                    showNotification(`Percentages total ${totalSplit.toFixed(1)}% (must be 100%)`, 'error');
-                    return;
-                }
-
-                await db.collection('families').doc(currentFamily).update({
-                    parents: parents
-                });
-
-                showNotification('Split configuration updated!', 'success');
-            } catch (error) {
-                showNotification(error.message, 'error');
-            }
-        }
-
         // Payment History Toggle Function
         function togglePaymentHistory(button) {
             const isExpanded = button.getAttribute('aria-expanded') === 'true';
@@ -5262,9 +5226,10 @@
         window.switchTab = function(tabName) {
             originalSwitchTab.call(this, tabName);
 
-            // Load nanny list when switching to settings (Task 9)
+            // Load nanny list and split config when switching to settings
             if (tabName === 'settings') {
                 loadNannyList();
+                renderSplitConfiguration();
             }
         };
 
@@ -5277,6 +5242,77 @@
             document.getElementById('inviteNannyModal').classList.add('hidden');
             document.getElementById('nannyEmail').value = '';
             document.getElementById('nannyName').value = '';
+        }
+
+        // ===== Expense Split Configuration =====
+        async function loadFamilySplitConfig() {
+            try {
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                return familyDoc.data().expenseSplits || {};
+            } catch (error) {
+                console.error('Error loading split config:', error);
+                return {};
+            }
+        }
+
+        async function renderSplitConfiguration() {
+            try {
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                const parents = familyDoc.data().parents || [];
+                const splits = await loadFamilySplitConfig();
+                const container = document.getElementById('parentsSplitContainer');
+
+                if (!container) return;
+
+                container.innerHTML = '';
+                parents.forEach((parent, idx) => {
+                    const split = splits[parent.name] || 50;
+                    const div = document.createElement('div');
+                    div.style.cssText = 'display: flex; align-items: center; gap: 15px; margin-bottom: 12px; padding: 10px; background: #f5f5f5; border-radius: 5px;';
+
+                    const label = document.createElement('span');
+                    label.textContent = parent.name;
+                    label.style.cssText = 'flex: 1; font-weight: 600; min-width: 120px;';
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.value = split;
+                    input.min = '0';
+                    input.max = '100';
+                    input.className = 'split-input';
+                    input.dataset.parent = parent.name;
+                    input.style.cssText = 'width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center;';
+
+                    const percent = document.createElement('span');
+                    percent.textContent = '%';
+                    percent.style.cssText = 'font-weight: 600; color: #666;';
+
+                    div.appendChild(label);
+                    div.appendChild(input);
+                    div.appendChild(percent);
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Error rendering split config:', error);
+            }
+        }
+
+        async function saveSplitChanges() {
+            try {
+                const splits = {};
+                document.querySelectorAll('.split-input').forEach(input => {
+                    splits[input.dataset.parent] = Math.max(0, Math.min(100, parseInt(input.value) || 50));
+                });
+
+                await db.collection('families').doc(currentFamily).update({
+                    expenseSplits: splits
+                });
+
+                showNotification('Expense split configuration saved', 'success');
+                loadExpenses();
+            } catch (error) {
+                showNotification('Error saving split configuration: ' + error.message, 'error');
+            }
         }
 
         async function sendNannyInvite() {
@@ -5327,11 +5363,20 @@
 
                 nanniesSnap.docs.forEach(doc => {
                     const nanny = doc.data();
+                    const status = nanny.status || 'pending';
+                    const statusColor = status === 'accepted' ? '#4caf50' : status === 'declined' ? '#dc3545' : '#ff9800';
+                    const statusBg = status === 'accepted' ? '#c8e6c9' : status === 'declined' ? '#ffcdd2' : '#ffe0b2';
+                    const statusEmoji = status === 'accepted' ? '✅' : status === 'declined' ? '❌' : '⏳';
+
                     html += `
                         <tr style="border-bottom: 1px solid #ddd;">
                             <td style="padding: 10px;">${nanny.name}</td>
                             <td style="padding: 10px;">${nanny.email}</td>
-                            <td style="padding: 10px;">${nanny.status}</td>
+                            <td style="padding: 10px;">
+                                <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 8px; border-radius: 3px; font-weight: 600; font-size: 0.9em;">
+                                    ${statusEmoji} ${status.charAt(0).toUpperCase() + status.slice(1)}
+                                </span>
+                            </td>
                             <td style="padding: 10px;"><button onclick="removeNanny('${doc.id}')" style="padding: 5px 10px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">Remove</button></td>
                         </tr>
                     `;
