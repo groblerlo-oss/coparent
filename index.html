@@ -4254,14 +4254,16 @@
                             noMsg.style.display = 'block';
                         } else {
                             noMsg.style.display = 'none';
-                            // Group by month for monthly entries
-                            const groupedAdj = {};
-                            settlement.adjustments.forEach(adj => {
-                                const key = adj.month ? `${adj.name}-${adj.month}` : adj.id;
-                                groupedAdj[key] = adj;
+                            // Filter to show monthly entries (with month field) and one-time items (no month)
+                            // Hide old recurring entries without month field for monthly contributions
+                            const filteredAdj = settlement.adjustments.filter(adj => {
+                                if (adj.type === 'contribution' && adj.frequency === 'monthly') {
+                                    return adj.month; // Only show monthly entries with month field
+                                }
+                                return true; // Show all other types
                             });
 
-                            Object.values(groupedAdj).forEach(adj => {
+                            Object.values(filteredAdj).forEach(adj => {
                                 const item = document.createElement('div');
                                 item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #ffe0b2;';
                                 const info = document.createElement('div');
