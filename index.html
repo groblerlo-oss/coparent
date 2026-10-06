@@ -4193,7 +4193,7 @@
                     // Handle settlement flipping if overpayment
                     let displayFrom = settlement.settlement.from;
                     let displayTo = settlement.settlement.to;
-                    let displayAmount = totalOwed;
+                    let displayAmount = remaining > 0 ? remaining : 0;
                     let isCredit = false;
 
                     if (overpayment > 0) {
@@ -4205,7 +4205,7 @@
 
                     const settlementText = isCredit
                         ? `✅ CREDIT: ${displayFrom} owes ${displayTo} ${formatZAR(displayAmount)}`
-                        : `${displayFrom} owes ${displayTo} ${formatZAR(displayAmount)}`;
+                        : `${displayFrom} owes ${displayTo} ${formatZAR(displayAmount)} (of ${formatZAR(totalOwed)} total)`;
                     document.getElementById('settlementText').innerHTML = settlementText;
 
                     const statusEmoji = remaining <= 0 ? '✅' : '⏳';
