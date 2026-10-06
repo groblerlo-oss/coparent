@@ -4208,14 +4208,14 @@
                     breakdownHTML += `<div style="margin-bottom: 6px;"><strong>Breakdown:</strong></div>`;
                     Object.entries(settlement.totalPaid).forEach(([person, paid]) => {
                         breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px;">
-                            ${person} paid: <strong>${formatZAR(paid)}</strong>
+                            ${person} paid: <strong>${formatZAR(paid)}</strong> (50/50 fair share: ${formatZAR(settlement.fairShare)})
                         </div>`;
                     });
                     breakdownHTML += `<div style="margin: 6px 0; padding-top: 6px; border-top: 1px solid #e8e8e8; padding-left: 8px;">
-                        Total: <strong>${formatZAR(settlement.totalExpenses)}</strong>
+                        Total expenses: <strong>${formatZAR(settlement.totalExpenses)}</strong>
                     </div>`;
                     breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #666;">
-                        Fair share each: ${formatZAR(settlement.fairShare)}
+                        Fair share each (50/50): <strong>${formatZAR(settlement.fairShare)}</strong>
                     </div>`;
 
                     if (adjustmentsTotal > 0) {
