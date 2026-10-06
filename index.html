@@ -4229,9 +4229,16 @@
 
                     if (adjustmentsTotal > 0) {
                         breakdownHTML += `<div style="margin: 6px 0; padding: 6px 0; border-top: 1px solid #e8e8e8; padding-left: 8px;"><strong>Adjustments:</strong></div>`;
+                        // Get current month for filtering monthly contributions
+                        const now = new Date();
+                        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
                         settlement.adjustments.forEach(adj => {
-                            if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to) {
-                                const freq = adj.frequency === 'monthly' ? '/month' : '';
+                            // Filter: show current month contributions + all one-time loans
+                            const isCurrentMonth = adj.type === 'contribution' && adj.frequency === 'monthly' ? adj.month === currentMonth : true;
+
+                            if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to && isCurrentMonth) {
+                                const freq = adj.type === 'loan' ? ' (one-time)' : (adj.frequency === 'monthly' ? '/month' : '');
                                 const adjColor = adj.type === 'loan' ? '#d32f2f' : '#ff9800';
                                 breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; padding: 4px 6px; background: ${adjColor}15; border-left: 2px solid ${adjColor}; border-radius: 2px; color: ${adjColor};">
                                     ${adj.name}${freq}: <strong>${formatZAR(adj.amount)}</strong>
