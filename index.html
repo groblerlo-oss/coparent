@@ -4966,6 +4966,33 @@
         }
 
         // Task 6: Record Payment Function
+        async function markMonthlyEntriesAsPaid(familyId, from, to, amount) {
+            // Mark monthly entries as paid when payment is recorded
+            const currentMonth = getCurrentMonthString();
+            try {
+                const adjustmentsSnap = await db.collection('families').doc(familyId)
+                    .collection('adjustments')
+                    .where('from', '==', from)
+                    .where('to', '==', to)
+                    .where('type', '==', 'contribution')
+                    .where('frequency', '==', 'monthly')
+                    .where('month', '==', currentMonth)
+                    .where('paid', '==', false)
+                    .get();
+
+                let remaining = amount;
+                for (const doc of adjustmentsSnap.docs) {
+                    const adjAmount = doc.data().amount;
+                    if (remaining >= adjAmount) {
+                        await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
+                        remaining -= adjAmount;
+                    }
+                }
+            } catch (error) {
+                console.error('Error marking monthly entries as paid:', error);
+            }
+        }
+
         async function recordPayment() {
             const from = document.getElementById('paymentFrom').value;
             const to = document.getElementById('paymentTo').value;
@@ -4999,6 +5026,9 @@
                     date: date,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
+
+                // Mark monthly entries as paid
+                await markMonthlyEntriesAsPaid(currentFamily, from, to, amount);
 
                 hidePaymentForm();
                 clearPaymentForm();
