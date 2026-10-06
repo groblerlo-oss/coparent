@@ -1765,8 +1765,13 @@
                 <input type="text" id="eventTitle" placeholder="e.g., Doctor Appointment">
             </div>
             <div class="form-group">
-                <label>Date</label>
+                <label>Start Date</label>
                 <input type="date" id="eventDate">
+            </div>
+            <div class="form-group">
+                <label>End Date (optional, for multi-day events)</label>
+                <input type="date" id="eventEndDate">
+                <small style="display: block; margin-top: 5px; color: #666;">Leave empty for single-day events. For a camping weekend, set end date to Sunday.</small>
             </div>
             <div class="form-group">
                 <label>Time</label>
@@ -2846,6 +2851,35 @@
             return expandedEvents;
         }
 
+        function expandMultiDayEvents(events) {
+            // Expand multi-day events to include all dates in the range
+            const expandedEvents = [];
+            events.forEach(event => {
+                if (event.endDate && event.endDate > event.date) {
+                    // Multi-day event - expand it
+                    const [startYear, startMonth, startDay] = event.date.split('-').map(Number);
+                    const [endYear, endMonth, endDay] = event.endDate.split('-').map(Number);
+                    let currentDate = new Date(startYear, startMonth - 1, startDay);
+                    const endDate = new Date(endYear, endMonth - 1, endDay);
+
+                    while (currentDate <= endDate) {
+                        const expandedEvent = {
+                            ...event,
+                            date: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`,
+                            expandedFromId: event.id || 'multiday',
+                            isMultiDayPart: true
+                        };
+                        expandedEvents.push(expandedEvent);
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                } else {
+                    // Not a multi-day event
+                    expandedEvents.push(event);
+                }
+            });
+            return expandedEvents;
+        }
+
         function calculateArchiveStatus(events) {
             // Calculate isArchived for each event based on current date
             const today = new Date();
@@ -2937,6 +2971,9 @@
 
                     // Expand recurring events
                     events = expandRecurringEvents(events);
+
+                    // Expand multi-day events
+                    events = expandMultiDayEvents(events);
 
                     // Calculate archive status
                     events = calculateArchiveStatus(events);
@@ -3108,7 +3145,7 @@
             detailsContent.innerHTML = `
                 <div>
                     <p><strong>Title:</strong> ${eventData.title}</p>
-                    <p><strong>Date:</strong> ${eventData.date}</p>
+                    <p><strong>Date:</strong> ${eventData.date}${eventData.endDate ? ` to ${eventData.endDate}` : ''}</p>
                     <p><strong>Time:</strong> ${eventData.time || 'Not specified'}</p>
                     <p><strong>Category:</strong> ${eventData.category || 'General'}</p>
                     ${eventData.notes ? `<p><strong>Notes:</strong> ${eventData.notes}</p>` : ''}
@@ -3440,6 +3477,8 @@
             document.getElementById('addEventModal').classList.add('hidden');
             document.getElementById('eventTitle').value = '';
             document.getElementById('eventNotes').value = '';
+            document.getElementById('eventTime').value = '';
+            document.getElementById('eventEndDate').value = '';
             clearRecurrenceFields();
         }
 
@@ -3486,6 +3525,7 @@
 
             const title = document.getElementById('eventTitle').value.trim();
             const dateObj = document.getElementById('eventDate').valueAsDate;
+            const endDateInput = document.getElementById('eventEndDate').value;
             const time = document.getElementById('eventTime').value;
             const notes = document.getElementById('eventNotes').value.trim();
             const isRecurring = document.getElementById('eventRecurring').checked;
@@ -3498,6 +3538,17 @@
             // Format date as YYYY-MM-DD in local timezone
             const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
 
+            // Handle end date for multi-day events
+            let endDateStr = null;
+            if (endDateInput) {
+                const endDateObj = new Date(endDateInput + 'T00:00:00');
+                if (endDateObj < dateObj) {
+                    showNotification('End date must be on or after start date', 'error');
+                    return;
+                }
+                endDateStr = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+            }
+
             // Validate recurrence
             if (isRecurring) {
                 const recurrenceDays = getSelectedRecurrenceDays();
@@ -3508,8 +3559,9 @@
             }
 
             try {
-                // Calculate archive date (event date + 5 days)
-                const archiveDate = new Date(dateObj);
+                // Calculate archive date (end date + 5 days, or start date + 5 days if no end date)
+                const refDate = endDateStr ? new Date(endDateInput + 'T00:00:00') : dateObj;
+                const archiveDate = new Date(refDate);
                 archiveDate.setDate(archiveDate.getDate() + 5);
 
                 const archivedDateStr = `${archiveDate.getFullYear()}-${String(archiveDate.getMonth() + 1).padStart(2, '0')}-${String(archiveDate.getDate()).padStart(2, '0')}`;
@@ -3517,6 +3569,7 @@
                 const eventData = {
                     title: title,
                     date: dateStr,
+                    endDate: endDateStr,
                     time: time || '',
                     notes: notes,
                     createdBy: currentUser.uid,
