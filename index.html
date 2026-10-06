@@ -4254,13 +4254,18 @@
                             noMsg.style.display = 'block';
                         } else {
                             noMsg.style.display = 'none';
-                            // Filter to show monthly entries (with month field) and one-time items (no month)
-                            // Hide old recurring entries without month field for monthly contributions
+                            // Filter to show ONLY monthly entries with month field, and one-time loans
+                            // Hide old recurring entries that don't have month tracking
                             const filteredAdj = settlement.adjustments.filter(adj => {
+                                // For monthly contributions: only show if it has a month field
                                 if (adj.type === 'contribution' && adj.frequency === 'monthly') {
-                                    return adj.month; // Only show monthly entries with month field
+                                    return !!adj.month; // Must have month field
                                 }
-                                return true; // Show all other types
+                                // For one-time loans: show only if they don't have a month (old style)
+                                if (adj.type === 'loan') {
+                                    return !adj.month; // One-time loans shouldn't have month
+                                }
+                                return false; // Hide everything else
                             });
 
                             Object.values(filteredAdj).forEach(adj => {
