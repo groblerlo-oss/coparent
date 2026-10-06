@@ -4207,11 +4207,13 @@
                     let breakdownHTML = `<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e0e0e0; font-size: 0.85em; color: #555;">`;
                     breakdownHTML += `<div style="margin-bottom: 6px;"><strong>Breakdown:</strong></div>`;
                     Object.entries(settlement.totalPaid).forEach(([person, paid]) => {
-                        breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px;">
-                            ${person} paid: <strong>${formatZAR(paid)}</strong> (50/50 fair share: ${formatZAR(settlement.fairShare)})
+                        const personColor = person === 'Louis' ? '#667eea' : '#9c27b0';
+                        breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; background: ${personColor}15; padding: 6px; border-radius: 3px; border-left: 3px solid ${personColor};">
+                            <span style="color: ${personColor}; font-weight: 600;">${person}</span> paid: <strong style="color: ${personColor};">${formatZAR(paid)}</strong>
+                            <div style="font-size: 0.9em; margin-top: 2px; color: #666;">50/50 fair share: ${formatZAR(settlement.fairShare)}</div>
                         </div>`;
                     });
-                    breakdownHTML += `<div style="margin: 6px 0; padding-top: 6px; border-top: 1px solid #e8e8e8; padding-left: 8px;">
+                    breakdownHTML += `<div style="margin: 6px 0; padding-top: 6px; border-top: 1px solid #e8e8e8; padding-left: 8px; font-weight: 600;">
                         Total expenses: <strong>${formatZAR(settlement.totalExpenses)}</strong>
                     </div>`;
                     breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #666;">
@@ -4223,10 +4225,15 @@
                         settlement.adjustments.forEach(adj => {
                             if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to) {
                                 const freq = adj.frequency === 'monthly' ? '/month' : '';
-                                breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; color: #555;">${adj.name}${freq}: <strong>+${formatZAR(adj.amount)}</strong></div>`;
+                                const adjColor = adj.type === 'loan' ? '#d32f2f' : '#ff9800';
+                                breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; padding: 4px 6px; background: ${adjColor}15; border-left: 2px solid ${adjColor}; border-radius: 2px; color: ${adjColor};">
+                                    ${adj.name}${freq}: <strong>${formatZAR(adj.amount)}</strong>
+                                </div>`;
                             }
                         });
-                        breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; color: #e65100; font-weight: 600;">Adjustments subtotal: ${formatZAR(adjustmentsTotal)}</div>`;
+                        breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; padding: 6px; background: #ff980015; border-left: 3px solid #ff9800; font-weight: 600; color: #ff9800; border-radius: 2px;">
+                            Adjustments subtotal: ${formatZAR(adjustmentsTotal)}
+                        </div>`;
                     }
 
                     if (overpayment > 0) {
