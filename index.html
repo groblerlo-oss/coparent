@@ -4492,15 +4492,24 @@
         }
 
         function calculateAdjustmentsTotals(adjustments, fromPerson, toPerson) {
-            const filtered = adjustments.filter(a => a.from === fromPerson && a.to === toPerson);
-            return filtered.reduce((sum, a) => {
-                // Monthly contributions: only count once per month, don't accumulate
+            const now = new Date();
+            const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            const filtered = adjustments.filter(a => {
+                // Must be from correct people and unpaid
+                if (a.from !== fromPerson || a.to !== toPerson || a.paid) return false;
+
+                // Monthly contributions: only count current month
                 if (a.type === 'contribution' && a.frequency === 'monthly') {
-                    return sum + (a.amount || 0);
+                    return a.month === currentMonth;
                 }
-                // One-time loans: accumulate as debt
-                return sum + (a.amount || 0);
-            }, 0);
+                // One-time loans: include all
+                if (a.type === 'loan') return true;
+
+                return false;
+            });
+
+            return filtered.reduce((sum, a) => sum + (a.amount || 0), 0);
         }
 
         function getOneTimeLoanTotal(adjustments, fromPerson, toPerson) {
