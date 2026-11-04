@@ -4103,6 +4103,10 @@
                         await batchMarkOldLunchboxAsPaid(currentFamily, parents[0].name, parents[1].name);
                     }
                 }
+
+                // Fix retroactive loan balances based on past payments
+                await retroactiveFixLoanBalances(currentFamily);
+
                 const expensesSnapshot = await db.collection('families').doc(currentFamily)
                     .collection('expenses')
                     .orderBy('date', 'desc')
@@ -5111,6 +5115,71 @@
                 }
             } catch (error) {
                 console.error('Error updating loan balances:', error);
+            }
+        }
+
+        async function retroactiveFixLoanBalances(familyId) {
+            // Fix loan balances based on recorded payments (for payments made before allocation tracking)
+            try {
+                const paymentsSnap = await db.collection('families').doc(familyId)
+                    .collection('payments')
+                    .orderBy('date', 'asc')
+                    .get();
+
+                const payments = paymentsSnap.docs.map(doc => doc.data());
+
+                for (const payment of payments) {
+                    if (payment.allocation && payment.allocation.loans > 0) {
+                        // This payment has allocation data, skip it
+                        continue;
+                    }
+
+                    // Old payment without allocation data - estimate it
+                    const fromName = payment.from;
+                    const toName = payment.to;
+                    let remaining = payment.amount;
+
+                    // First estimate: base + contributions + loans
+                    // Calculate what was owed at that time by looking at settlement
+                    const settlement = await calculateSettlement(familyId);
+                    if (settlement.settlement && settlement.settlement.from === fromName && settlement.settlement.to === toName) {
+                        // Allocate to base
+                        remaining -= Math.min(remaining, settlement.settlement.amount);
+
+                        // Allocate to contributions
+                        for (const adj of settlement.adjustments) {
+                            if (adj.type === 'contribution' && remaining > 0) {
+                                remaining -= Math.min(remaining, adj.amount);
+                            }
+                        }
+
+                        // Allocate to loans - update balance
+                        if (remaining > 0) {
+                            const loansSnap = await db.collection('families').doc(familyId)
+                                .collection('adjustments')
+                                .where('from', '==', fromName)
+                                .where('to', '==', toName)
+                                .where('type', '==', 'loan')
+                                .get();
+
+                            for (const doc of loansSnap.docs) {
+                                if (remaining <= 0) break;
+                                const adj = doc.data();
+                                const adjAmount = adj.amount;
+                                const paid = Math.min(remaining, adjAmount);
+                                const newAmount = Math.max(0, adjAmount - paid);
+
+                                // Only update if amount is different
+                                if (newAmount !== adjAmount) {
+                                    await doc.ref.update({ amount: newAmount });
+                                    remaining -= paid;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fixing retroactive loan balances:', error);
             }
         }
 
