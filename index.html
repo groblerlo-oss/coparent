@@ -4241,12 +4241,19 @@
                         const now = new Date();
                         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+                        // Track shown items to prevent duplicates
+                        const shownInBreakdown = new Set();
+
                         settlement.adjustments.forEach(adj => {
                             // Filter: show current month contributions + all one-time loans (only if unpaid)
                             const isCurrentMonth = adj.type === 'contribution' && adj.frequency === 'monthly' ? adj.month === currentMonth : true;
                             const isUnpaid = !adj.paid; // Only show if not marked as paid
 
                             if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to && isCurrentMonth && isUnpaid) {
+                                const displayKey = `${adj.name}-${adj.month || 'loan'}`;
+                                if (shownInBreakdown.has(displayKey)) return; // Skip duplicates
+                                shownInBreakdown.add(displayKey);
+
                                 const freq = adj.type === 'loan' ? ' (one-time)' : (adj.frequency === 'monthly' ? '/month' : '');
                                 const adjColor = adj.type === 'loan' ? '#d32f2f' : '#ff9800';
                                 breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; padding: 4px 6px; background: ${adjColor}15; border-left: 2px solid ${adjColor}; border-radius: 2px; color: ${adjColor};">
@@ -5042,6 +5049,31 @@
             }
         }
 
+        async function markLoansAsPaid(familyId, from, to, amount) {
+            // Mark unpaid loans as paid when payment is recorded
+            try {
+                const loansSnap = await db.collection('families').doc(familyId)
+                    .collection('adjustments')
+                    .where('from', '==', from)
+                    .where('to', '==', to)
+                    .where('type', '==', 'loan')
+                    .where('paid', '==', false)
+                    .get();
+
+                let remaining = amount;
+                for (const doc of loansSnap.docs) {
+                    if (remaining <= 0) break;
+                    const adjAmount = doc.data().amount;
+                    if (remaining >= adjAmount) {
+                        await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
+                        remaining -= adjAmount;
+                    }
+                }
+            } catch (error) {
+                console.error('Error marking loans as paid:', error);
+            }
+        }
+
         async function recordPayment() {
             const from = document.getElementById('paymentFrom').value;
             const to = document.getElementById('paymentTo').value;
@@ -5076,8 +5108,9 @@
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                // Mark monthly entries as paid
+                // Mark adjustments as paid (monthly entries and loans)
                 await markMonthlyEntriesAsPaid(currentFamily, from, to, amount);
+                await markLoansAsPaid(currentFamily, from, to, amount);
 
                 hidePaymentForm();
                 clearPaymentForm();
