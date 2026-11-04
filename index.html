@@ -4234,10 +4234,11 @@
                         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
                         settlement.adjustments.forEach(adj => {
-                            // Filter: show current month contributions + all one-time loans
+                            // Filter: show current month contributions + all one-time loans (only if unpaid)
                             const isCurrentMonth = adj.type === 'contribution' && adj.frequency === 'monthly' ? adj.month === currentMonth : true;
+                            const isUnpaid = !adj.paid; // Only show if not marked as paid
 
-                            if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to && isCurrentMonth) {
+                            if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to && isCurrentMonth && isUnpaid) {
                                 const freq = adj.type === 'loan' ? ' (one-time)' : (adj.frequency === 'monthly' ? '/month' : '');
                                 const adjColor = adj.type === 'loan' ? '#d32f2f' : '#ff9800';
                                 breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; padding: 4px 6px; background: ${adjColor}15; border-left: 2px solid ${adjColor}; border-radius: 2px; color: ${adjColor};">
@@ -4273,8 +4274,11 @@
                             const now = new Date();
                             const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-                            // Filter to show: current month lunchbox + all one-time loans
+                            // Filter to show: current month unpaid lunchbox + unpaid one-time loans
                             const filteredAdj = settlement.adjustments.filter(adj => {
+                                // Only show if unpaid
+                                if (adj.paid) return false;
+
                                 // For monthly contributions: only show current month
                                 if (adj.type === 'contribution' && adj.frequency === 'monthly') {
                                     return adj.month === currentMonth; // Show only current month
