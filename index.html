@@ -5033,12 +5033,15 @@
                     .where('type', '==', 'contribution')
                     .where('frequency', '==', 'monthly')
                     .where('month', '==', currentMonth)
-                    .where('paid', '==', false)
                     .get();
 
                 let remaining = amount;
                 for (const doc of adjustmentsSnap.docs) {
-                    const adjAmount = doc.data().amount;
+                    const adj = doc.data();
+                    // Skip if already marked as paid
+                    if (adj.paid === true) continue;
+
+                    const adjAmount = adj.amount;
                     if (remaining >= adjAmount) {
                         await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
                         remaining -= adjAmount;
@@ -5057,13 +5060,16 @@
                     .where('from', '==', from)
                     .where('to', '==', to)
                     .where('type', '==', 'loan')
-                    .where('paid', '==', false)
                     .get();
 
                 let remaining = amount;
                 for (const doc of loansSnap.docs) {
                     if (remaining <= 0) break;
-                    const adjAmount = doc.data().amount;
+                    const adj = doc.data();
+                    // Skip if already marked as paid
+                    if (adj.paid === true) continue;
+
+                    const adjAmount = adj.amount;
                     if (remaining >= adjAmount) {
                         await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
                         remaining -= adjAmount;
