@@ -4095,6 +4095,14 @@
             expensesList.innerHTML = '<div class="loading">Loading expenses...</div>';
 
             try {
+                // Batch mark old lunchbox entries as paid (cleanup old months)
+                const familyDoc = await db.collection('families').doc(currentFamily).get();
+                if (familyDoc.exists) {
+                    const parents = familyDoc.data().parents || [];
+                    if (parents.length >= 2) {
+                        await batchMarkOldLunchboxAsPaid(currentFamily, parents[0].name, parents[1].name);
+                    }
+                }
                 const expensesSnapshot = await db.collection('families').doc(currentFamily)
                     .collection('expenses')
                     .orderBy('date', 'desc')
@@ -4980,6 +4988,33 @@
         }
 
         // Task 6: Record Payment Function
+        async function batchMarkOldLunchboxAsPaid(familyId, from, to) {
+            // Mark all past months' lunchbox as paid (batch cleanup)
+            const now = new Date();
+            const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            try {
+                const adjustmentsSnap = await db.collection('families').doc(familyId)
+                    .collection('adjustments')
+                    .where('from', '==', from)
+                    .where('to', '==', to)
+                    .where('type', '==', 'contribution')
+                    .where('frequency', '==', 'monthly')
+                    .where('paid', '==', false)
+                    .get();
+
+                for (const doc of adjustmentsSnap.docs) {
+                    const adj = doc.data();
+                    // Mark as paid if month is before current month
+                    if (adj.month && adj.month < currentMonth) {
+                        await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
+                    }
+                }
+            } catch (error) {
+                console.error('Error batch marking old lunchbox as paid:', error);
+            }
+        }
+
         async function markMonthlyEntriesAsPaid(familyId, from, to, amount) {
             // Mark monthly entries as paid when payment is recorded
             const currentMonth = getCurrentMonthString();
