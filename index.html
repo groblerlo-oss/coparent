@@ -4096,9 +4096,9 @@
 
             try {
                 // Batch mark old lunchbox entries as paid (cleanup old months)
-                const familyDoc = await db.collection('families').doc(currentFamily).get();
-                if (familyDoc.exists) {
-                    const parents = familyDoc.data().parents || [];
+                const cleanupFamilyDoc = await db.collection('families').doc(currentFamily).get();
+                if (cleanupFamilyDoc.exists) {
+                    const parents = cleanupFamilyDoc.data().parents || [];
                     if (parents.length >= 2) {
                         await batchMarkOldLunchboxAsPaid(currentFamily, parents[0].name, parents[1].name);
                     }
