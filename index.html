@@ -5026,10 +5026,9 @@
             // Mark monthly entries as paid when payment is recorded
             const currentMonth = getCurrentMonthString();
             try {
-                const adjustmentsSnap = await db.collection('families').doc(familyId)
+                // First try with from/to filter
+                let adjustmentsSnap = await db.collection('families').doc(familyId)
                     .collection('adjustments')
-                    .where('from', '==', from)
-                    .where('to', '==', to)
                     .where('type', '==', 'contribution')
                     .where('frequency', '==', 'monthly')
                     .where('month', '==', currentMonth)
@@ -5040,6 +5039,10 @@
                     const adj = doc.data();
                     // Skip if already marked as paid
                     if (adj.paid === true) continue;
+
+                    // Check if from/to match (if fields exist)
+                    if (adj.from && adj.from !== from) continue;
+                    if (adj.to && adj.to !== to) continue;
 
                     const adjAmount = adj.amount;
                     if (remaining >= adjAmount) {
@@ -5057,8 +5060,6 @@
             try {
                 const loansSnap = await db.collection('families').doc(familyId)
                     .collection('adjustments')
-                    .where('from', '==', from)
-                    .where('to', '==', to)
                     .where('type', '==', 'loan')
                     .get();
 
@@ -5069,6 +5070,10 @@
                     // Skip if already marked as paid
                     if (adj.paid === true) continue;
 
+                    // Check if from/to match (if fields exist)
+                    if (adj.from && adj.from !== from) continue;
+                    if (adj.to && adj.to !== to) continue;
+
                     const adjAmount = adj.amount;
                     if (remaining >= adjAmount) {
                         await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
@@ -5077,6 +5082,35 @@
                 }
             } catch (error) {
                 console.error('Error marking loans as paid:', error);
+            }
+        }
+
+        async function updateLoanBalances(familyId, from, to, amountPaid) {
+            // Reduce loan amounts after payment
+            try {
+                const loansSnap = await db.collection('families').doc(familyId)
+                    .collection('adjustments')
+                    .where('type', '==', 'loan')
+                    .get();
+
+                let remaining = amountPaid;
+                for (const doc of loansSnap.docs) {
+                    if (remaining <= 0) break;
+                    const adj = doc.data();
+
+                    // Check if from/to match (if fields exist)
+                    if (adj.from && adj.from !== from) continue;
+                    if (adj.to && adj.to !== to) continue;
+
+                    const adjAmount = adj.amount;
+                    const paid = Math.min(remaining, adjAmount);
+                    const newAmount = Math.max(0, adjAmount - paid);
+
+                    await doc.ref.update({ amount: newAmount });
+                    remaining -= paid;
+                }
+            } catch (error) {
+                console.error('Error updating loan balances:', error);
             }
         }
 
@@ -5106,17 +5140,58 @@
             try {
                 const currentFamily = document.getElementById('familyDropdown').value;
 
+                // Calculate payment allocation breakdown
+                const settlement = await calculateSettlement(currentFamily);
+                const allocation = {};
+                let remaining = amount;
+
+                // Allocate: base expenses → contributions → loans
+                if (settlement.settlement) {
+                    allocation.baseSettlement = Math.min(remaining, settlement.settlement.amount);
+                    remaining -= allocation.baseSettlement;
+                }
+
+                allocation.contributions = 0;
+                allocation.loans = 0;
+
+                // Allocate to contributions (lunchbox)
+                if (settlement.adjustments) {
+                    for (const adj of settlement.adjustments) {
+                        if (adj.type === 'contribution' && !adj.paid && remaining > 0) {
+                            const paid = Math.min(remaining, adj.amount);
+                            allocation.contributions += paid;
+                            remaining -= paid;
+                        }
+                    }
+                    // Allocate remaining to loans
+                    for (const adj of settlement.adjustments) {
+                        if (adj.type === 'loan' && !adj.paid && remaining > 0) {
+                            const paid = Math.min(remaining, adj.amount);
+                            allocation.loans += paid;
+                            remaining -= paid;
+                        }
+                    }
+                }
+
+                allocation.credit = remaining;
+
                 await db.collection('families').doc(currentFamily).collection('payments').add({
                     from: from,
                     to: to,
                     amount: amount,
                     date: date,
+                    allocation: allocation,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
                 // Mark adjustments as paid (monthly entries and loans)
                 await markMonthlyEntriesAsPaid(currentFamily, from, to, amount);
                 await markLoansAsPaid(currentFamily, from, to, amount);
+
+                // Update lawyer fees if any loan was paid
+                if (allocation.loans > 0) {
+                    await updateLoanBalances(currentFamily, from, to, allocation.loans);
+                }
 
                 hidePaymentForm();
                 clearPaymentForm();
@@ -5186,15 +5261,26 @@
 
             let html = '';
             payments.forEach(payment => {
+                const alloc = payment.allocation || {};
+                let breakdown = '';
+                if (alloc.baseSettlement > 0) breakdown += `Base: ${formatZAR(alloc.baseSettlement)} • `;
+                if (alloc.contributions > 0) breakdown += `Lunchbox: ${formatZAR(alloc.contributions)} • `;
+                if (alloc.loans > 0) breakdown += `Lawyer Fees: ${formatZAR(alloc.loans)} • `;
+                if (alloc.credit > 0) breakdown += `Credit: ${formatZAR(alloc.credit)}`;
+                if (!breakdown) breakdown = 'No allocation data';
+
                 html += `
-                    <div style="padding: 8px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between;">
-                        <span>
-                            <strong>${payment.from}</strong> → <strong>${payment.to}</strong>
-                        </span>
-                        <span style="text-align: right;">
-                            <div style="color: #667eea; font-weight: 600;">${formatZAR(payment.amount)}</div>
-                            <div style="font-size: 0.85em; color: #999;">${payment.date}</div>
-                        </span>
+                    <div style="padding: 12px; border-bottom: 1px solid #f0f0f0; background: #fafafa; border-radius: 4px; margin-bottom: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span>
+                                <strong>${payment.from}</strong> → <strong>${payment.to}</strong>
+                            </span>
+                            <span style="color: #667eea; font-weight: 600; font-size: 1.1em;">${formatZAR(payment.amount)}</span>
+                        </div>
+                        <div style="font-size: 0.85em; color: #666; margin-bottom: 4px;">${payment.date}</div>
+                        <div style="font-size: 0.8em; color: #999; padding-top: 6px; border-top: 1px solid #e0e0e0;">
+                            Allocated: ${breakdown}
+                        </div>
                     </div>
                 `;
             });
