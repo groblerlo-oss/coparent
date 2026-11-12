@@ -5128,83 +5128,21 @@
         }
 
         async function retroactiveFixLoanBalances(familyId) {
-            // Fix loan balances and mark adjustments as paid based on recorded payments
+            // Mark unpaid adjustments as paid since payments have been made
             try {
-                const paymentsSnap = await db.collection('families').doc(familyId)
-                    .collection('payments')
-                    .orderBy('date', 'asc')
+                const adjustmentsSnap = await db.collection('families').doc(familyId)
+                    .collection('adjustments')
                     .get();
 
-                const payments = paymentsSnap.docs.map(doc => doc.data());
-
-                for (const payment of payments) {
-                    if (payment.allocation && payment.allocation.loans > 0) {
-                        // This payment has allocation data, skip it
-                        continue;
-                    }
-
-                    // Old payment without allocation data - mark adjustments as paid
-                    const fromName = payment.from;
-                    const toName = payment.to;
-                    let remaining = payment.amount;
-
-                    // First allocate to base (we don't track this, just subtract)
-                    const settlement = await calculateSettlement(familyId);
-                    if (settlement.settlement && settlement.settlement.from === fromName && settlement.settlement.to === toName) {
-                        remaining -= Math.min(remaining, settlement.settlement.amount);
-
-                        // Mark contributions as paid
-                        const contributionsSnap = await db.collection('families').doc(familyId)
-                            .collection('adjustments')
-                            .where('type', '==', 'contribution')
-                            .where('from', '==', fromName)
-                            .where('to', '==', toName)
-                            .get();
-
-                        for (const doc of contributionsSnap.docs) {
-                            if (remaining <= 0) break;
-                            const adj = doc.data();
-                            if (adj.paid) continue; // Skip already paid
-
-                            const adjAmount = adj.amount;
-                            if (remaining >= adjAmount) {
-                                await doc.ref.update({ paid: true, paidDate: payment.date });
-                                remaining -= adjAmount;
-                            }
-                        }
-
-                        // Mark loans as paid and update amounts
-                        if (remaining > 0) {
-                            const loansSnap = await db.collection('families').doc(familyId)
-                                .collection('adjustments')
-                                .where('type', '==', 'loan')
-                                .where('from', '==', fromName)
-                                .where('to', '==', toName)
-                                .get();
-
-                            for (const doc of loansSnap.docs) {
-                                if (remaining <= 0) break;
-                                const adj = doc.data();
-                                if (adj.paid) continue; // Skip already paid
-
-                                const adjAmount = adj.amount;
-                                const paid = Math.min(remaining, adjAmount);
-                                const newAmount = Math.max(0, adjAmount - paid);
-
-                                if (paid >= adjAmount) {
-                                    // Mark as fully paid
-                                    await doc.ref.update({ paid: true, paidDate: payment.date, amount: newAmount });
-                                } else if (newAmount !== adjAmount) {
-                                    // Partial payment, update amount but mark as paid anyway if there's remaining credit
-                                    await doc.ref.update({ paid: true, paidDate: payment.date, amount: newAmount });
-                                }
-                                remaining -= paid;
-                            }
-                        }
+                for (const doc of adjustmentsSnap.docs) {
+                    const adj = doc.data();
+                    if (!adj.paid) {
+                        // Mark as paid
+                        await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
                     }
                 }
             } catch (error) {
-                console.error('Error fixing retroactive loan balances:', error);
+                console.error('Error marking adjustments as paid:', error);
             }
         }
 
