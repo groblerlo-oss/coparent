@@ -5128,8 +5128,11 @@
         }
 
         async function retroactiveFixLoanBalances(familyId) {
-            // Mark unpaid adjustments as paid since payments have been made
+            // Mark past unpaid adjustments as paid
             try {
+                const now = new Date();
+                const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
                 const adjustmentsSnap = await db.collection('families').doc(familyId)
                     .collection('adjustments')
                     .get();
@@ -5137,8 +5140,16 @@
                 for (const doc of adjustmentsSnap.docs) {
                     const adj = doc.data();
                     if (!adj.paid) {
-                        // Mark as paid
-                        await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
+                        // Mark monthly contributions from past months as paid
+                        if (adj.type === 'contribution' && adj.frequency === 'monthly') {
+                            if (adj.month && adj.month < currentMonth) {
+                                await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
+                            }
+                        }
+                        // Mark all one-time loans as paid (they should only exist once)
+                        else if (adj.type === 'loan') {
+                            await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
+                        }
                     }
                 }
             } catch (error) {
