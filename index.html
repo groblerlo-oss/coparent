@@ -5200,9 +5200,6 @@
                         }
 
                         allocation.credit = remaining;
-
-                        // Store the calculated allocation
-                        await paymentDoc.ref.update({ allocation: allocation });
                     }
                 }
             } catch (error) {
@@ -5355,9 +5352,47 @@
                 return;
             }
 
+            // Get settlement to calculate allocations for old payments
+            const settlement = await calculateSettlement(familyId);
+
             let html = '';
             payments.forEach(payment => {
-                const alloc = payment.allocation || {};
+                let alloc = payment.allocation || {};
+
+                // Calculate allocation if not stored
+                if (!payment.allocation && settlement.settlement) {
+                    let remaining = payment.amount;
+                    alloc = {};
+
+                    if (settlement.settlement.from === payment.from && settlement.settlement.to === payment.to) {
+                        alloc.baseSettlement = Math.min(remaining, settlement.settlement.amount);
+                        remaining -= alloc.baseSettlement;
+                    } else {
+                        alloc.baseSettlement = 0;
+                    }
+
+                    alloc.contributions = 0;
+                    alloc.loans = 0;
+
+                    if (settlement.adjustments) {
+                        for (const adj of settlement.adjustments) {
+                            if (adj.type === 'contribution' && remaining > 0) {
+                                const paid = Math.min(remaining, adj.amount);
+                                alloc.contributions += paid;
+                                remaining -= paid;
+                            }
+                        }
+                        for (const adj of settlement.adjustments) {
+                            if (adj.type === 'loan' && remaining > 0) {
+                                const paid = Math.min(remaining, adj.amount);
+                                alloc.loans += paid;
+                                remaining -= paid;
+                            }
+                        }
+                    }
+                    alloc.credit = remaining;
+                }
+
                 let breakdown = '';
                 if (alloc.baseSettlement > 0) breakdown += `Base: ${formatZAR(alloc.baseSettlement)} • `;
                 if (alloc.contributions > 0) breakdown += `Lunchbox: ${formatZAR(alloc.contributions)} • `;
