@@ -4249,21 +4249,26 @@
                         const shownInBreakdown = new Set();
 
                         settlement.adjustments.forEach(adj => {
-                            // Filter: show current month contributions + all one-time loans (only if unpaid)
+                            // Check if unpaid
+                            if (adj.paid) return;
+
+                            // Check from/to match (if fields exist, otherwise assume they match)
+                            if (adj.from && adj.from !== settlement.settlement.from) return;
+                            if (adj.to && adj.to !== settlement.settlement.to) return;
+
+                            // Filter: show current month contributions + all one-time loans
                             const isCurrentMonth = adj.type === 'contribution' && adj.frequency === 'monthly' ? adj.month === currentMonth : true;
-                            const isUnpaid = !adj.paid; // Only show if not marked as paid
+                            if (!isCurrentMonth) return;
 
-                            if (adj.from === settlement.settlement.from && adj.to === settlement.settlement.to && isCurrentMonth && isUnpaid) {
-                                const displayKey = `${adj.name}-${adj.month || 'loan'}`;
-                                if (shownInBreakdown.has(displayKey)) return; // Skip duplicates
-                                shownInBreakdown.add(displayKey);
+                            const displayKey = `${adj.name}-${adj.month || 'loan'}`;
+                            if (shownInBreakdown.has(displayKey)) return; // Skip duplicates
+                            shownInBreakdown.add(displayKey);
 
-                                const freq = adj.type === 'loan' ? ' (one-time)' : (adj.frequency === 'monthly' ? '/month' : '');
-                                const adjColor = adj.type === 'loan' ? '#d32f2f' : '#ff9800';
-                                breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; padding: 4px 6px; background: ${adjColor}15; border-left: 2px solid ${adjColor}; border-radius: 2px; color: ${adjColor};">
-                                    ${adj.name}${freq}: <strong>${formatZAR(adj.amount)}</strong>
-                                </div>`;
-                            }
+                            const freq = adj.type === 'loan' ? ' (one-time)' : (adj.frequency === 'monthly' ? '/month' : '');
+                            const adjColor = adj.type === 'loan' ? '#d32f2f' : '#ff9800';
+                            breakdownHTML += `<div style="margin: 4px 0; padding-left: 16px; padding: 4px 6px; background: ${adjColor}15; border-left: 2px solid ${adjColor}; border-radius: 2px; color: ${adjColor};">
+                                ${adj.name}${freq}: <strong>${formatZAR(adj.amount)}</strong>
+                            </div>`;
                         });
                         breakdownHTML += `<div style="margin: 4px 0; padding-left: 8px; padding: 6px; background: #ff980015; border-left: 3px solid #ff9800; font-weight: 600; color: #ff9800; border-radius: 2px;">
                             Adjustments subtotal: ${formatZAR(adjustmentsTotal)}
@@ -4515,8 +4520,12 @@
             const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
             const filtered = adjustments.filter(a => {
-                // Must be from correct people and unpaid
-                if (a.from !== fromPerson || a.to !== toPerson || a.paid) return false;
+                // Skip if paid
+                if (a.paid) return false;
+
+                // Check from/to match (if fields exist, otherwise assume they match)
+                if (a.from && a.from !== fromPerson) return false;
+                if (a.to && a.to !== toPerson) return false;
 
                 // Monthly contributions: only count current month
                 if (a.type === 'contribution' && a.frequency === 'monthly') {
@@ -5119,7 +5128,7 @@
         }
 
         async function retroactiveFixLoanBalances(familyId) {
-            // Fix loan balances based on recorded payments (for payments made before allocation tracking)
+            // Fix loan balances and mark adjustments as paid based on recorded payments
             try {
                 const paymentsSnap = await db.collection('families').doc(familyId)
                     .collection('payments')
@@ -5134,46 +5143,62 @@
                         continue;
                     }
 
-                    // Old payment without allocation data - estimate it
+                    // Old payment without allocation data - mark adjustments as paid
                     const fromName = payment.from;
                     const toName = payment.to;
                     let remaining = payment.amount;
 
-                    // First estimate: base + contributions + loans
-                    // Calculate what was owed at that time by looking at settlement
+                    // First allocate to base (we don't track this, just subtract)
                     const settlement = await calculateSettlement(familyId);
                     if (settlement.settlement && settlement.settlement.from === fromName && settlement.settlement.to === toName) {
-                        // Allocate to base
                         remaining -= Math.min(remaining, settlement.settlement.amount);
 
-                        // Allocate to contributions
-                        for (const adj of settlement.adjustments) {
-                            if (adj.type === 'contribution' && remaining > 0) {
-                                remaining -= Math.min(remaining, adj.amount);
+                        // Mark contributions as paid
+                        const contributionsSnap = await db.collection('families').doc(familyId)
+                            .collection('adjustments')
+                            .where('type', '==', 'contribution')
+                            .where('from', '==', fromName)
+                            .where('to', '==', toName)
+                            .get();
+
+                        for (const doc of contributionsSnap.docs) {
+                            if (remaining <= 0) break;
+                            const adj = doc.data();
+                            if (adj.paid) continue; // Skip already paid
+
+                            const adjAmount = adj.amount;
+                            if (remaining >= adjAmount) {
+                                await doc.ref.update({ paid: true, paidDate: payment.date });
+                                remaining -= adjAmount;
                             }
                         }
 
-                        // Allocate to loans - update balance
+                        // Mark loans as paid and update amounts
                         if (remaining > 0) {
                             const loansSnap = await db.collection('families').doc(familyId)
                                 .collection('adjustments')
+                                .where('type', '==', 'loan')
                                 .where('from', '==', fromName)
                                 .where('to', '==', toName)
-                                .where('type', '==', 'loan')
                                 .get();
 
                             for (const doc of loansSnap.docs) {
                                 if (remaining <= 0) break;
                                 const adj = doc.data();
+                                if (adj.paid) continue; // Skip already paid
+
                                 const adjAmount = adj.amount;
                                 const paid = Math.min(remaining, adjAmount);
                                 const newAmount = Math.max(0, adjAmount - paid);
 
-                                // Only update if amount is different
-                                if (newAmount !== adjAmount) {
-                                    await doc.ref.update({ amount: newAmount });
-                                    remaining -= paid;
+                                if (paid >= adjAmount) {
+                                    // Mark as fully paid
+                                    await doc.ref.update({ paid: true, paidDate: payment.date, amount: newAmount });
+                                } else if (newAmount !== adjAmount) {
+                                    // Partial payment, update amount but mark as paid anyway if there's remaining credit
+                                    await doc.ref.update({ paid: true, paidDate: payment.date, amount: newAmount });
                                 }
+                                remaining -= paid;
                             }
                         }
                     }
