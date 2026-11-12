@@ -5128,7 +5128,7 @@
         }
 
         async function retroactiveFixLoanBalances(familyId) {
-            // Mark past unpaid adjustments as paid
+            // Mark past unpaid adjustments as paid and calculate allocation for old payments
             try {
                 const now = new Date();
                 const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -5150,6 +5150,59 @@
                         else if (adj.type === 'loan') {
                             await doc.ref.update({ paid: true, paidDate: new Date().toISOString() });
                         }
+                    }
+                }
+
+                // Calculate and store allocation for old payments without allocation data
+                const paymentsSnap = await db.collection('families').doc(familyId)
+                    .collection('payments')
+                    .orderBy('date', 'asc')
+                    .get();
+
+                const settlement = await calculateSettlement(familyId);
+
+                for (const paymentDoc of paymentsSnap.docs) {
+                    const payment = paymentDoc.data();
+                    if (!payment.allocation) {
+                        // Calculate allocation for this old payment
+                        let remaining = payment.amount;
+                        const allocation = {};
+
+                        // Allocate to base settlement
+                        if (settlement.settlement && settlement.settlement.from === payment.from && settlement.settlement.to === payment.to) {
+                            allocation.baseSettlement = Math.min(remaining, settlement.settlement.amount);
+                            remaining -= allocation.baseSettlement;
+                        } else {
+                            allocation.baseSettlement = 0;
+                        }
+
+                        allocation.contributions = 0;
+                        allocation.loans = 0;
+
+                        // Allocate to contributions
+                        if (settlement.adjustments) {
+                            for (const adj of settlement.adjustments) {
+                                if (adj.type === 'contribution' && remaining > 0 && (!adj.from || adj.from === payment.from) && (!adj.to || adj.to === payment.to)) {
+                                    const paid = Math.min(remaining, adj.amount);
+                                    allocation.contributions += paid;
+                                    remaining -= paid;
+                                }
+                            }
+
+                            // Allocate to loans
+                            for (const adj of settlement.adjustments) {
+                                if (adj.type === 'loan' && remaining > 0 && (!adj.from || adj.from === payment.from) && (!adj.to || adj.to === payment.to)) {
+                                    const paid = Math.min(remaining, adj.amount);
+                                    allocation.loans += paid;
+                                    remaining -= paid;
+                                }
+                            }
+                        }
+
+                        allocation.credit = remaining;
+
+                        // Store the calculated allocation
+                        await paymentDoc.ref.update({ allocation: allocation });
                     }
                 }
             } catch (error) {
