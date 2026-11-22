@@ -5375,14 +5375,17 @@
                     alloc.loans = 0;
 
                     if (settlement.adjustments) {
-                        for (const adj of settlement.adjustments) {
+                        // Filter to only unpaid adjustments
+                        const unpaidAdjustments = settlement.adjustments.filter(adj => !adj.paid);
+
+                        for (const adj of unpaidAdjustments) {
                             if (adj.type === 'contribution' && remaining > 0) {
                                 const paid = Math.min(remaining, adj.amount);
                                 alloc.contributions += paid;
                                 remaining -= paid;
                             }
                         }
-                        for (const adj of settlement.adjustments) {
+                        for (const adj of unpaidAdjustments) {
                             if (adj.type === 'loan' && remaining > 0) {
                                 const paid = Math.min(remaining, adj.amount);
                                 alloc.loans += paid;
