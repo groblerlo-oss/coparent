@@ -3967,7 +3967,10 @@
                 const expensesSnap = await db.collection('families').doc(familyId).collection('expenses').get();
                 const familyDoc = await db.collection('families').doc(familyId).get();
 
-                const expenses = expensesSnap.docs.map(doc => doc.data());
+                // Only include unpaid expenses in settlement calculation
+                const expenses = expensesSnap.docs
+                    .map(doc => doc.data())
+                    .filter(exp => !exp.paid);
                 const parents = familyDoc.data().parents || [];
                 const expenseSplits = familyDoc.data().expenseSplits || {};
 
@@ -4139,6 +4142,10 @@
 
                 expensesSnapshot.forEach(doc => {
                     const expense = doc.data();
+
+                    // Skip paid expenses
+                    if (expense.paid) return;
+
                     expenses.push(expense);
 
                     const row = tbody.insertRow();
@@ -5098,6 +5105,39 @@
             }
         }
 
+        async function markExpensesAsPaid(familyId, from, to, allocation, paymentDate) {
+            // Mark expenses as paid based on payment allocation
+            try {
+                const expensesSnap = await db.collection('families').doc(familyId)
+                    .collection('expenses')
+                    .where('paidBy', '==', from)
+                    .orderBy('date', 'desc')
+                    .get();
+
+                let baseRemaining = allocation.baseSettlement || 0;
+
+                // Mark expenses as paid in reverse date order until amount is used
+                for (const doc of expensesSnap.docs) {
+                    if (baseRemaining <= 0) break;
+
+                    const exp = doc.data();
+                    if (!exp.paid && exp.paidBy === from) {
+                        const expAmount = exp.amount || 0;
+                        if (baseRemaining >= expAmount) {
+                            await doc.ref.update({
+                                paid: true,
+                                paidDate: paymentDate,
+                                coveredByPayment: true
+                            });
+                            baseRemaining -= expAmount;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error marking expenses as paid:', error);
+            }
+        }
+
         async function updateLoanBalances(familyId, from, to, amountPaid) {
             // Reduce loan amounts after payment
             try {
@@ -5277,6 +5317,9 @@
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
+                // Mark expenses as paid based on allocation
+                await markExpensesAsPaid(currentFamily, from, to, allocation, date);
+
                 // Mark adjustments as paid (monthly entries and loans)
                 await markMonthlyEntriesAsPaid(currentFamily, from, to, amount);
                 await markLoansAsPaid(currentFamily, from, to, amount);
@@ -5355,8 +5398,18 @@
             // Get settlement to calculate allocations for old payments
             const settlement = await calculateSettlement(familyId);
 
+            // Get all expenses to find which were covered by each payment
+            const expensesSnap = await db.collection('families').doc(familyId).collection('expenses').get();
+            const allExpenses = expensesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
             let html = '';
             payments.forEach(payment => {
+                // Find expenses covered by this payment
+                const coveredExpenses = allExpenses.filter(exp =>
+                    exp.paidDate === payment.date &&
+                    exp.paidBy === payment.from &&
+                    exp.paid
+                );
                 let alloc = payment.allocation || {};
 
                 // Calculate allocation if not stored
@@ -5403,6 +5456,15 @@
                 if (alloc.credit > 0) breakdown += `Credit: ${formatZAR(alloc.credit)}`;
                 if (!breakdown) breakdown = 'No allocation data';
 
+                let expensesDetail = '';
+                if (coveredExpenses.length > 0) {
+                    expensesDetail = '<div style="font-size: 0.75em; color: #666; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0;"><strong>Covered expenses:</strong><ul style="margin: 4px 0; padding-left: 16px;">';
+                    coveredExpenses.forEach(exp => {
+                        expensesDetail += `<li>${exp.description}: ${formatZAR(exp.amount)}</li>`;
+                    });
+                    expensesDetail += '</ul></div>';
+                }
+
                 html += `
                     <div style="padding: 12px; border-bottom: 1px solid #f0f0f0; background: #fafafa; border-radius: 4px; margin-bottom: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -5415,6 +5477,7 @@
                         <div style="font-size: 0.8em; color: #999; padding-top: 6px; border-top: 1px solid #e0e0e0;">
                             Allocated: ${breakdown}
                         </div>
+                        ${expensesDetail}
                     </div>
                 `;
             });
