@@ -4527,9 +4527,9 @@
                 if (a.from && a.from !== fromPerson) return false;
                 if (a.to && a.to !== toPerson) return false;
 
-                // Monthly contributions: only count current month
+                // Monthly contributions: only count current month or if no month field (generic)
                 if (a.type === 'contribution' && a.frequency === 'monthly') {
-                    return a.month === currentMonth;
+                    return !a.month || a.month === currentMonth;
                 }
                 // One-time loans: include all
                 if (a.type === 'loan') return true;
